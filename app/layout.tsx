@@ -13,16 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'MarginOS | Management Commercial Console',
+  title: 'CPaaS Overview | Management Console',
   description: 'Executive commercial, client and project profitability console.',
   openGraph: {
-    title: 'MarginOS',
+    title: 'CPaaS Overview',
     description: 'Management Commercial & Profitability Console',
     images: ['/og.png'],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'MarginOS',
+    title: 'CPaaS Overview',
     description: 'Management Commercial & Profitability Console',
     images: ['/og.png'],
   },
