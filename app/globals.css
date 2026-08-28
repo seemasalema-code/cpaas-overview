@@ -18,3 +18,6 @@ nav button{color:#746f68;font-weight:650;border-radius:12px}nav button.on,nav bu
 .card{background:#fffdf9;border-color:var(--line);border-radius:20px;box-shadow:0 10px 32px #8f806a0d}.grid .card:nth-child(2){background:#f7f3fb}.grid .card:nth-child(3){background:#f2f7f2}.title h2{font-size:15px}
 .table{background:#fffdf9;border-color:var(--line);border-radius:20px;box-shadow:0 10px 32px #8f806a10}thead{background:#f3eee8}th,td{border-bottom-color:#ebe3d9}tbody tr:hover{background:#faf6ef}
 .pill.good,.status.live{background:#e4f0e8;color:#537f6c}.pill.warn,.status.development,.status.uat{background:#faefd9;color:#9b6c30}.pill.bad,.status.lost,.status.paused{background:#f7e4e3;color:#a85b62}.status.discovery,.status.quotes-given{background:#e9e9f5;color:#696d9c}
+
+/* Enforce the requested typeface on native controls, charts and all dashboard text. */
+html,body,body *,button,input,select,option,textarea,table,svg text{font-family:"Segoe UI",SegoeUI,Arial,sans-serif!important}
