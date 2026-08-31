@@ -1107,7 +1107,7 @@ function ClientTable({
                     <b>{compact(c.totalRevenue)}</b>
                   </td>
                   <td className={c.margin < 0 ? 'bad' : 'good'}>
-                    {compact(c.margin)}
+                    <b>{compact(c.margin)}</b>
                   </td>
                   <td>
                     <span
