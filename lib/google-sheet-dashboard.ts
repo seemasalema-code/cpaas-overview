@@ -3,7 +3,9 @@ import {buildDashboard} from '@/lib/csv-dashboard';
 export const SOURCE_SPREADSHEET_ID='1udQZmSHEpLWuQJO2k0t4UvA3zU8fUFkvx_1lIfINId8';
 export const SOURCE_SPREADSHEET_URL=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/edit?gid=888299704#gid=888299704`;
 
-const SHEETS={projects:888299704,rm:559338930,wa:172604510,rcs:269889098} as const;
+// Use the same filter-independent source feeds as BotPulse so both consoles
+// always receive identical Projects and Chatbot R&M rows.
+const SHEETS={projects:1640000001,rm:1640000002,wa:172604510,rcs:269889098} as const;
 
 async function fetchCsv(gid:number){
   const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${gid}`,{cache:'no-store'});
