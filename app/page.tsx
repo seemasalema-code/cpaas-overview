@@ -43,7 +43,7 @@ const full = (v: number) =>
   }).format(v);
 const percent = (v: number, b: number) =>
   b ? `${((v / b) * 100).toFixed(1)}%` : '—';
-type View = 'overview' | 'clients' | 'projects' | 'client360';
+type View = 'overview' | 'clients' | 'projects' | 'forecast' | 'client360';
 type ProjectSort = 'default' | 'revenue' | 'margin';
 const monthLabel = (m: string) =>
   new Date(m + '-01').toLocaleDateString('en-IN', {
@@ -288,6 +288,13 @@ export default function Home() {
             Projects
           </button>
           <button
+            onClick={() => setView('forecast')}
+            className={view === 'forecast' ? 'on' : ''}
+          >
+            <TrendingUp />
+            Forecast
+          </button>
+          <button
             onClick={() => setView('client360')}
             className={view === 'client360' ? 'on' : ''}
           >
@@ -321,7 +328,9 @@ export default function Home() {
                   ? 'Client profitability'
                   : view === 'projects'
                     ? 'Project portfolio'
-                    : 'Chatbot + consumables overlap'}
+                    : view === 'forecast'
+                      ? 'Chatbot revenue forecast'
+                      : 'Chatbot + consumables overlap'}
             </h1>
           </div>
         </header>
@@ -375,7 +384,7 @@ export default function Home() {
               </label>
             </>
           )}
-          <div className="month-picker" ref={monthPickerRef}>
+          {view !== 'forecast' && <div className="month-picker" ref={monthPickerRef}>
             <button
               aria-expanded={monthOpen}
               onClick={() => setMonthOpen(!monthOpen)}
@@ -421,7 +430,7 @@ export default function Home() {
                 </button>
               </div>
             )}
-          </div>
+          </div>}
           {view === 'overview' && (
             <div className={'mom-chip ' + (revenueMove >= 0 ? 'up' : 'down')}>
               <TrendingUp />
@@ -440,7 +449,7 @@ export default function Home() {
               )}
             </div>
           )}
-          <span>Project commercials + WA + RCS</span>
+          <span>{view === 'forecast' ? 'Forecast · Chatbot R&M only' : 'Chatbot R&M + WA + RCS'}</span>
         </div>
         {view === 'overview' ? (
           <div className="content">
@@ -646,6 +655,12 @@ export default function Home() {
             }}
             onOpenMonths={() => setMonthOpen(true)}
           />
+        ) : view === 'forecast' ? (
+          <ForecastView
+            rows={data.forecastClientMonthly || []}
+            monthly={liveData.forecastMonthly || []}
+            query={query}
+          />
         ) : (
           <Client360
             projects={projects}
@@ -656,6 +671,27 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+function ForecastView({ rows, monthly, query }: { rows: any[]; monthly: any[]; query: string }) {
+  const visible = rows.filter((r) => r.client.toLowerCase().includes(query.toLowerCase()));
+  const revenue = visible.reduce((s, r) => s + Number(r.chatbotRevenue || 0), 0);
+  const cost = visible.reduce((s, r) => s + Number(r.chatbotCost || 0), 0);
+  const margin = revenue - cost;
+  return <div className="content forecast-view">
+    <div className="kpis">
+      <Kpi label="Forecast revenue" value={compact(revenue)} note="Future Chatbot R&M months" icon={<TrendingUp />} />
+      <Kpi label="Forecast cost" value={compact(cost)} note="Future vendor cost" icon={<WalletCards />} />
+      <Kpi label="Forecast margin" value={compact(margin)} note={percent(margin, revenue) + ' forecast'} icon={<BarChart3 />} />
+      <Kpi label="Forecast clients" value={String(new Set(visible.map(r => r.client)).size)} note="Live projects with future rows" icon={<Users />} />
+    </div>
+    <div className="dashboard-grid forecast-grid">
+      <Card title="Monthly chatbot forecast" sub="Actual reporting stops at the current month; future R&M rows appear here as Forecast.">
+        <div className="forecast-months">{monthly.map((m:any) => <div key={m.month}><span>{monthLabel(m.month)}</span><b>{compact(m.chatbotRevenue)}</b><small>{compact(m.chatbotCost)} cost · {compact(m.chatbotMargin)} margin</small></div>)}</div>
+      </Card>
+      <div className="table-card forecast-table"><table><thead><tr><th>Month</th><th>Client</th><th>Type</th><th>Revenue</th><th>Cost</th><th>Margin</th><th>Margin %</th></tr></thead><tbody>{visible.map((r:any)=><tr key={r.client+'-'+r.month}><td>{monthLabel(r.month)}</td><td><b>{r.client}</b></td><td><span className="forecast-chip">Forecast</span></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.chatbotCost)}</td><td className={r.chatbotRevenue-r.chatbotCost<0?'bad':'good'}>{compact(r.chatbotRevenue-r.chatbotCost)}</td><td>{percent(r.chatbotRevenue-r.chatbotCost,r.chatbotRevenue)}</td></tr>)}</tbody></table>{!visible.length&&<div className="empty">No future Chatbot R&M rows are available.</div>}</div>
+    </div>
+  </div>;
 }
 const clientKey = (value: string) =>
   String(value || '')
