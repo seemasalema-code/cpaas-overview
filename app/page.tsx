@@ -25,6 +25,7 @@ import {
   Presentation,
   Search,
   TrendingUp,
+  Users,
   WalletCards,
 } from 'lucide-react';
 import { consoleData } from '@/lib/console-data';
@@ -44,7 +45,7 @@ const full = (v: number) =>
   }).format(v);
 const percent = (v: number, b: number) =>
   b ? `${((v / b) * 100).toFixed(1)}%` : '—';
-type View = 'overview' | 'clients' | 'projects';
+type View = 'overview' | 'clients' | 'projects' | 'client360';
 type ProjectSort = 'default' | 'revenue' | 'margin';
 const monthLabel = (m: string) =>
   new Date(m + '-01').toLocaleDateString('en-IN', {
@@ -281,6 +282,13 @@ export default function Home() {
             <WalletCards />
             Projects
           </button>
+          <button
+            onClick={() => setView('client360')}
+            className={view === 'client360' ? 'on' : ''}
+          >
+            <Users />
+            Client 360
+          </button>
         </nav>
         <div className="source">
           <span>Shared dataset</span>
@@ -306,7 +314,9 @@ export default function Home() {
                 ? 'Executive overview'
                 : view === 'clients'
                   ? 'Client profitability'
-                  : 'Project portfolio'}
+                  : view === 'projects'
+                    ? 'Project portfolio'
+                    : 'Chatbot + consumables overlap'}
             </h1>
           </div>
           <div className="actions">
@@ -328,6 +338,8 @@ export default function Home() {
               placeholder={
                 view === 'clients'
                   ? 'Search client…'
+                  : view === 'client360'
+                    ? 'Search overlapping clients…'
                   : 'Search client, project, owner or bot type…'
               }
             />
@@ -622,7 +634,7 @@ export default function Home() {
               monthly={liveMonthly}
             />
           )
-        ) : (
+        ) : view === 'projects' ? (
           <ProjectSegmentTable
             rows={projectRows}
             months={selectedMonths}
@@ -638,9 +650,125 @@ export default function Home() {
             }}
             onOpenMonths={() => setMonthOpen(true)}
           />
+        ) : (
+          <Client360
+            projects={projects}
+            monthly={liveMonthly}
+            query={query}
+          />
         )}
       </section>
     </main>
+  );
+}
+const clientKey = (value: string) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/\b(private|pvt|limited|ltd|company|co)\b/g, '')
+    .replace(/[^a-z0-9]/g, '');
+
+function Client360({
+  projects,
+  monthly,
+  query,
+}: {
+  projects: any[];
+  monthly: any[];
+  query: string;
+}) {
+  const [scope, setScope] = useState<'all' | 'wa' | 'rcs' | 'both'>('all');
+  const [selected, setSelected] = useState<string | null>(null);
+  const rows = useMemo(() => {
+    const consumables = new Map<string, any>();
+    monthly.forEach((r) => {
+      const key = clientKey(r.client);
+      const item = consumables.get(key) || {
+        client: r.client,
+        waRevenue: 0,
+        waCost: 0,
+        rcsRevenue: 0,
+        rcsCost: 0,
+        months: new Set<string>(),
+      };
+      item.waRevenue += Number(r.waRevenue || 0);
+      item.waCost += Number(r.waCost || 0);
+      item.rcsRevenue += Number(r.rcsRevenue || 0);
+      item.rcsCost += Number(r.rcsCost || 0);
+      if (r.waRevenue || r.waCost || r.rcsRevenue || r.rcsCost)
+        item.months.add(r.month);
+      consumables.set(key, item);
+    });
+    const chatbotClients = new Map<string, any>();
+    projects.forEach((p) => {
+      const key = clientKey(p.client);
+      const item = chatbotClients.get(key) || {
+        client: p.client,
+        projects: [],
+      };
+      item.projects.push(p);
+      chatbotClients.set(key, item);
+    });
+    return [...chatbotClients.entries()]
+      .map(([key, chatbot]) => {
+        const usage = consumables.get(key);
+        if (!usage) return null;
+        const hasWA = usage.waRevenue !== 0 || usage.waCost !== 0;
+        const hasRCS = usage.rcsRevenue !== 0 || usage.rcsCost !== 0;
+        if (!hasWA && !hasRCS) return null;
+        return { ...chatbot, ...usage, key, hasWA, hasRCS };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) =>
+        String(a.client).localeCompare(String(b.client)),
+      ) as any[];
+  }, [projects, monthly]);
+  const visible = rows.filter(
+    (r) =>
+      (scope === 'all' ||
+        (scope === 'wa' && r.hasWA) ||
+        (scope === 'rcs' && r.hasRCS) ||
+        (scope === 'both' && r.hasWA && r.hasRCS)) &&
+      r.client.toLowerCase().includes(query.toLowerCase()),
+  );
+  const current = rows.find((r) => r.key === selected) || null;
+  const history = current
+    ? monthly
+        .filter((r) => clientKey(r.client) === current.key)
+        .sort((a, b) => a.month.localeCompare(b.month))
+    : [];
+  return (
+    <div className="client360-wrap">
+      <div className="content client360-head">
+        <div className="heading">
+          <div>
+            <h2>Chatbot clients using consumables</h2>
+            <p>Clients matched across chatbot projects, WhatsApp and RCS billing.</p>
+          </div>
+          <span>{visible.length} matched clients</span>
+        </div>
+        <div className="client360-kpis">
+          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>All matched</span></button>
+          <button className={scope === 'wa' ? 'active' : ''} onClick={() => setScope('wa')}><b>{rows.filter(r => r.hasWA).length}</b><span>WhatsApp</span></button>
+          <button className={scope === 'rcs' ? 'active' : ''} onClick={() => setScope('rcs')}><b>{rows.filter(r => r.hasRCS).length}</b><span>RCS</span></button>
+          <button className={scope === 'both' ? 'active' : ''} onClick={() => setScope('both')}><b>{rows.filter(r => r.hasWA && r.hasRCS).length}</b><span>WA + RCS</span></button>
+        </div>
+      </div>
+      <div className="client360-grid">
+        <div className="table-card client360-list">
+          <table><thead><tr><th>Client</th><th>Chatbots</th><th>Channels</th><th>Months</th><th>Consumables revenue</th></tr></thead>
+            <tbody>{visible.map((r) => <tr key={r.key} className={selected === r.key ? 'selected' : ''} onClick={() => setSelected(r.key)}><td><b>{r.client}</b></td><td>{r.projects.length}</td><td><span className="channel-pills">{r.hasWA && <em>WA</em>}{r.hasRCS && <em>RCS</em>}</span></td><td>{r.months.size}</td><td>{compact(r.waRevenue + r.rcsRevenue)}</td></tr>)}</tbody>
+          </table>
+        </div>
+        <aside className="client360-detail">
+          {!current ? <div className="client360-empty"><Users /><b>Select a client</b><span>Click a row to see month-wise consumables and its chatbot portfolio.</span></div> : <>
+            <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}</b></span><button onClick={() => setSelected(null)}>×</button></div>
+            <div className="client360-projects"><h3>Chatbots</h3>{current.projects.map((p:any) => <div key={p.project}><b>{p.project}</b><span>{p.type} · {p.status}</span></div>)}</div>
+            <h3>Month-wise consumables</h3>
+            <div className="client360-history">{history.map((r:any) => <div key={r.month}><b>{monthLabel(r.month)}</b><span>WA {compact(r.waRevenue)}<small>cost {compact(r.waCost)}</small></span><span>RCS {compact(r.rcsRevenue)}<small>cost {compact(r.rcsCost)}</small></span></div>)}</div>
+          </>}
+        </aside>
+      </div>
+    </div>
   );
 }
 function Kpi({
