@@ -15,14 +15,12 @@ import {
   YAxis,
 } from 'recharts';
 import {
-  ArrowUpRight,
   BarChart3,
   Building2,
   CircleAlert,
   ExternalLink,
   Filter,
   Layers3,
-  Presentation,
   Search,
   TrendingUp,
   Users,
@@ -76,8 +74,7 @@ export default function Home() {
       Array.from(new Set(clientMonthly.map((r) => r.month))).sort(),
     ),
     [projectSort, setProjectSort] = useState<ProjectSort>('default'),
-    [monthOpen, setMonthOpen] = useState(false),
-    [present, setPresent] = useState(false);
+    [monthOpen, setMonthOpen] = useState(false);
   const liveData = data.consoleData,
     liveMonthly = data.clientMonthly;
   const monthPickerRef = useRef<HTMLDivElement>(null);
@@ -249,7 +246,7 @@ export default function Home() {
     ],
     colors = ['#8db9a6', '#9ca9d9', '#e8b98b'];
   return (
-    <main className={present ? 'present app' : 'app'}>
+    <main className="app">
       <aside>
         <div className="brand">
           <i>
@@ -318,15 +315,6 @@ export default function Home() {
                     ? 'Project portfolio'
                     : 'Chatbot + consumables overlap'}
             </h1>
-          </div>
-          <div className="actions">
-            <button onClick={() => setPresent(!present)}>
-              <Presentation />
-              {present ? 'Exit' : 'Present'}
-            </button>
-            <a href={liveData.sourceUrl} target="_blank">
-              Source data <ArrowUpRight />
-            </a>
           </div>
         </header>
         <div className="filters">
