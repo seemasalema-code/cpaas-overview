@@ -170,17 +170,21 @@ export default function Home() {
   const periodClients = useMemo(() => {
     const period = new Map<
       string,
-      { waRevenue: number; waCost: number; rcsRevenue: number; rcsCost: number }
+      { chatbotRevenue: number; chatbotCost: number; waRevenue: number; waCost: number; rcsRevenue: number; rcsCost: number }
     >();
     liveMonthly
       .filter((r: any) => selectedMonths.includes(r.month))
       .forEach((r: any) => {
         const x = period.get(r.client) || {
+          chatbotRevenue: 0,
+          chatbotCost: 0,
           waRevenue: 0,
           waCost: 0,
           rcsRevenue: 0,
           rcsCost: 0,
         };
+        x.chatbotRevenue += Number(r.chatbotRevenue || 0);
+        x.chatbotCost += Number(r.chatbotCost || 0);
         x.waRevenue += r.waRevenue;
         x.waCost += r.waCost;
         x.rcsRevenue += r.rcsRevenue;
@@ -189,16 +193,20 @@ export default function Home() {
       });
     return clients.map((c: any) => {
       const x = period.get(c.client) || {
+        chatbotRevenue: 0,
+        chatbotCost: 0,
         waRevenue: 0,
         waCost: 0,
         rcsRevenue: 0,
         rcsCost: 0,
       };
-      const totalRevenue = c.projectRevenue + x.waRevenue + x.rcsRevenue,
-        totalCost = c.projectCost + x.waCost + x.rcsCost;
+      const totalRevenue = x.chatbotRevenue + x.waRevenue + x.rcsRevenue,
+        totalCost = x.chatbotCost + x.waCost + x.rcsCost;
       return {
         ...c,
         ...x,
+        projectRevenue: x.chatbotRevenue,
+        projectCost: x.chatbotCost,
         totalRevenue,
         totalCost,
         margin: totalRevenue - totalCost,
@@ -664,7 +672,7 @@ function Client360({
   monthly: any[];
   query: string;
 }) {
-  const [scope, setScope] = useState<'all' | 'wa' | 'rcs' | 'both'>('all');
+  const [scope, setScope] = useState<'all' | 'wa' | 'rcs'>('all');
   const [selected, setSelected] = useState<string | null>(null);
   const rows = useMemo(() => {
     const consumables = new Map<string, any>();
@@ -672,17 +680,21 @@ function Client360({
       const key = clientKey(r.client);
       const item = consumables.get(key) || {
         client: r.client,
+        chatbotRevenue: 0,
+        chatbotCost: 0,
         waRevenue: 0,
         waCost: 0,
         rcsRevenue: 0,
         rcsCost: 0,
         months: new Set<string>(),
       };
+      item.chatbotRevenue += Number(r.chatbotRevenue || 0);
+      item.chatbotCost += Number(r.chatbotCost || 0);
       item.waRevenue += Number(r.waRevenue || 0);
       item.waCost += Number(r.waCost || 0);
       item.rcsRevenue += Number(r.rcsRevenue || 0);
       item.rcsCost += Number(r.rcsCost || 0);
-      if (r.waRevenue || r.waCost || r.rcsRevenue || r.rcsCost)
+      if (r.chatbotRevenue || r.chatbotCost || r.waRevenue || r.waCost || r.rcsRevenue || r.rcsCost)
         item.months.add(r.month);
       consumables.set(key, item);
     });
@@ -698,12 +710,11 @@ function Client360({
     });
     return [...chatbotClients.entries()]
       .map(([key, chatbot]) => {
-        const usage = consumables.get(key);
-        if (!usage) return null;
+        const usage = consumables.get(key) || {client:chatbot.client,chatbotRevenue:0,chatbotCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0,months:new Set<string>()};
         const hasWA = usage.waRevenue !== 0 || usage.waCost !== 0;
         const hasRCS = usage.rcsRevenue !== 0 || usage.rcsCost !== 0;
-        if (!hasWA && !hasRCS) return null;
-        return { ...chatbot, ...usage, key, hasWA, hasRCS };
+        const chatbotMargin=usage.chatbotRevenue-usage.chatbotCost;
+        return { ...chatbot, ...usage, key, hasWA, hasRCS, chatbotMargin };
       })
       .filter(Boolean)
       .sort((a: any, b: any) =>
@@ -714,8 +725,7 @@ function Client360({
     (r) =>
       (scope === 'all' ||
         (scope === 'wa' && r.hasWA) ||
-        (scope === 'rcs' && r.hasRCS) ||
-        (scope === 'both' && r.hasWA && r.hasRCS)) &&
+        (scope === 'rcs' && r.hasRCS)) &&
       r.client.toLowerCase().includes(query.toLowerCase()),
   );
   const current = rows.find((r) => r.key === selected) || null;
@@ -732,27 +742,27 @@ function Client360({
             <h2>Chatbot clients using consumables</h2>
             <p>Clients matched across chatbot projects, WhatsApp and RCS billing.</p>
           </div>
-          <span>{visible.length} matched clients</span>
+          <span>{visible.length} chatbot clients</span>
         </div>
         <div className="client360-kpis">
-          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>All matched</span></button>
-          <button className={scope === 'wa' ? 'active' : ''} onClick={() => setScope('wa')}><b>{rows.filter(r => r.hasWA).length}</b><span>WhatsApp</span></button>
+          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>Chatbot</span></button>
+          <button className={scope === 'wa' ? 'active' : ''} onClick={() => setScope('wa')}><b>{rows.filter(r => r.hasWA).length}</b><span>WA</span></button>
           <button className={scope === 'rcs' ? 'active' : ''} onClick={() => setScope('rcs')}><b>{rows.filter(r => r.hasRCS).length}</b><span>RCS</span></button>
-          <button className={scope === 'both' ? 'active' : ''} onClick={() => setScope('both')}><b>{rows.filter(r => r.hasWA && r.hasRCS).length}</b><span>WA + RCS</span></button>
         </div>
       </div>
       <div className="client360-grid">
         <div className="table-card client360-list">
-          <table><thead><tr><th>Client</th><th>Chatbots</th><th>Channels</th><th>Months</th><th>Consumables revenue</th></tr></thead>
-            <tbody>{visible.map((r) => <tr key={r.key} className={selected === r.key ? 'selected' : ''} onClick={() => setSelected(r.key)}><td><b>{r.client}</b></td><td>{r.projects.length}</td><td><span className="channel-pills">{r.hasWA && <em>WA</em>}{r.hasRCS && <em>RCS</em>}</span></td><td>{r.months.size}</td><td>{compact(r.waRevenue + r.rcsRevenue)}</td></tr>)}</tbody>
+          <table><thead><tr><th>Client</th><th>Chatbots</th><th>Channels</th><th>Chatbot</th><th>WA</th><th>RCS</th><th>Chatbot margin</th></tr></thead>
+            <tbody>{visible.map((r) => <tr key={r.key} className={selected === r.key ? 'selected' : ''} onClick={() => setSelected(r.key)}><td><b>{r.client}</b>{r.chatbotMargin < 0 && <em className="negative-chip">Negative margin</em>}</td><td>{r.projects.length}</td><td><span className="channel-pills">{r.hasWA && <em>WA</em>}{r.hasRCS && <em>RCS</em>}</span></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.waRevenue)}</td><td>{compact(r.rcsRevenue)}</td><td className={r.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(r.chatbotMargin)}</td></tr>)}</tbody>
           </table>
         </div>
         <aside className="client360-detail">
-          {!current ? <div className="client360-empty"><Users /><b>Select a client</b><span>Click a row to see month-wise consumables and its chatbot portfolio.</span></div> : <>
-            <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}</b></span><button onClick={() => setSelected(null)}>×</button></div>
+          {!current ? <div className="client360-empty"><Users /><b>Select a client</b><span>Click a row to see total month-wise revenue and its chatbot portfolio.</span></div> : <>
+            <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}{current.chatbotMargin < 0 && <em className="negative-chip">Negative margin</em>}</b></span><button onClick={() => setSelected(null)}>×</button></div>
+            <div className="client360-finance"><div><small>Chatbot</small><b>{compact(current.chatbotRevenue)}</b></div><div><small>WA</small><b>{compact(current.waRevenue)}</b></div><div><small>RCS</small><b>{compact(current.rcsRevenue)}</b></div><div><small>Chatbot margin</small><b className={current.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(current.chatbotMargin)}</b></div></div>
             <div className="client360-projects"><h3>Chatbots</h3>{current.projects.map((p:any) => <div key={p.project}><b>{p.project}</b><span>{p.type} · {p.status}</span></div>)}</div>
-            <h3>Month-wise consumables</h3>
-            <div className="client360-history">{history.map((r:any) => <div key={r.month}><b>{monthLabel(r.month)}</b><span>WA {compact(r.waRevenue)}<small>cost {compact(r.waCost)}</small></span><span>RCS {compact(r.rcsRevenue)}<small>cost {compact(r.rcsCost)}</small></span></div>)}</div>
+            <h3>Month-wise revenue</h3>
+            <div className="client360-history">{history.map((r:any) => <div key={r.month}><b>{monthLabel(r.month)}</b><span>Total revenue <strong>{compact(Number(r.chatbotRevenue||0)+Number(r.waRevenue||0)+Number(r.rcsRevenue||0))}</strong></span></div>)}</div>
           </>}
         </aside>
       </div>
