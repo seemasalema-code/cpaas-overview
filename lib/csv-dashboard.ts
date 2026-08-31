@@ -9,6 +9,8 @@ export function parseCsv(text:string){
 
 function monthValue(value:string){
  const v=clean(value);if(/^\d{4}-\d{2}/.test(v))return v.slice(0,7);
+ const indian=v.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+ if(indian){const month=Number(indian[2]),year=Number(indian[3]);if(month>=1&&month<=12)return `${year}-${String(month).padStart(2,'0')}`}
  const d=new Date(v);if(!Number.isNaN(d.getTime()))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
  const serial=Number(v);if(serial>30000){const x=new Date(Date.UTC(1899,11,30)+serial*86400000);return `${x.getUTCFullYear()}-${String(x.getUTCMonth()+1).padStart(2,'0')}`}
  return '';
