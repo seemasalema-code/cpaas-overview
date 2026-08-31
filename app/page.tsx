@@ -659,6 +659,7 @@ export default function Home() {
           <ForecastView
             rows={data.forecastClientMonthly || []}
             monthly={liveData.forecastMonthly || []}
+            actualRows={liveMonthly || []}
             query={query}
           />
         ) : (
@@ -673,26 +674,35 @@ export default function Home() {
   );
 }
 
-function ForecastView({ rows, monthly, query }: { rows: any[]; monthly: any[]; query: string }) {
+function ForecastView({ rows, monthly, actualRows, query }: { rows: any[]; monthly: any[]; actualRows: any[]; query: string }) {
   const visible = rows.filter((r) => r.client.toLowerCase().includes(query.toLowerCase()));
+  const actual = actualRows.filter((r) => r.client.toLowerCase().includes(query.toLowerCase()));
   const totalRevenue = (r:any) => Number(r.chatbotRevenue||0)+Number(r.waRevenue||0)+Number(r.rcsRevenue||0);
   const totalCost = (r:any) => Number(r.chatbotCost||0)+Number(r.waCost||0)+Number(r.rcsCost||0);
-  const revenue = visible.reduce((s, r) => s + totalRevenue(r), 0);
-  const cost = visible.reduce((s, r) => s + totalCost(r), 0);
-  const margin = revenue - cost;
+  const future = visible.reduce((s, r) => s + totalRevenue(r), 0);
+  const achieved = actual.reduce((s, r) => s + totalRevenue(r), 0);
+  const projected = achieved + future;
+  const achievement = projected ? achieved / projected * 100 : 0;
+  const streams = [
+    { label: 'Chatbot', className: 'chatbot', achieved: actual.reduce((s,r)=>s+Number(r.chatbotRevenue||0),0), future: visible.reduce((s,r)=>s+Number(r.chatbotRevenue||0),0) },
+    { label: 'WA consumables', className: 'wa', achieved: actual.reduce((s,r)=>s+Number(r.waRevenue||0),0), future: visible.reduce((s,r)=>s+Number(r.waRevenue||0),0) },
+    { label: 'RCS consumables', className: 'rcs', achieved: actual.reduce((s,r)=>s+Number(r.rcsRevenue||0),0), future: visible.reduce((s,r)=>s+Number(r.rcsRevenue||0),0) },
+  ];
+  const forecastMonths = query ? Array.from(new Set(visible.map(r=>r.month))).sort().map(month=>visible.filter(r=>r.month===month).reduce((a,r)=>({month,chatbotRevenue:a.chatbotRevenue+Number(r.chatbotRevenue||0),waRevenue:a.waRevenue+Number(r.waRevenue||0),rcsRevenue:a.rcsRevenue+Number(r.rcsRevenue||0),totalRevenue:a.totalRevenue+totalRevenue(r)}),{month,chatbotRevenue:0,waRevenue:0,rcsRevenue:0,totalRevenue:0})) : monthly;
   return <div className="content forecast-view">
-    <div className="kpis">
-      <Kpi label="Forecast revenue" value={compact(revenue)} note="Chatbot + WA + RCS" icon={<TrendingUp />} />
-      <Kpi label="Forecast cost" value={compact(cost)} note="Combined delivery cost" icon={<WalletCards />} />
-      <Kpi label="Forecast margin" value={compact(margin)} note={percent(margin, revenue) + ' combined'} icon={<BarChart3 />} />
-      <Kpi label="Forecast clients" value={String(new Set(visible.map(r => r.client)).size)} note="Projected clients" icon={<Users />} />
+    <div className="kpis forecast-kpis">
+      <Kpi label="Projected revenue" value={compact(projected)} note="Achieved + future forecast" icon={<TrendingUp />} />
+      <Kpi label="Achieved" value={compact(achieved)} note={achievement.toFixed(1) + '% of projected'} icon={<WalletCards />} />
+      <Kpi label="Remaining to achieve" value={compact(future)} note="Future months" icon={<BarChart3 />} />
+      <Kpi label="Achievement" value={achievement.toFixed(1) + '%'} note={`${compact(achieved)} of ${compact(projected)}`} icon={<Users />} />
     </div>
-    <div className="dashboard-grid forecast-grid">
-      <Card title="Monthly combined forecast" sub="Live chatbot run-rate plus the trailing 3-month WA and RCS consumption average.">
-        <div className="forecast-months">{monthly.map((m:any) => <div key={m.month}><span>{monthLabel(m.month)}</span><b>{compact(m.totalRevenue)}</b><small>{compact(m.chatbotRevenue)} chatbot · {compact(m.waRevenue)} WA · {compact(m.rcsRevenue)} RCS · {compact(m.totalRevenue-m.totalCost)} margin</small></div>)}</div>
+    <div className="dashboard-grid forecast-stream-grid">
+      <Card title="Monthly forecast by revenue stream" sub="Live chatbot run-rate plus the trailing 3-month WA and RCS consumption average.">
+        <div className="forecast-months">{forecastMonths.map((m:any) => <div className="forecast-month-card" key={m.month}><div className="forecast-month-head"><span>{monthLabel(m.month)}</span><b>{compact(m.totalRevenue)}</b></div><div className="forecast-stream-pills"><em className="chatbot">Chatbot {compact(m.chatbotRevenue)}</em><em className="wa">WA {compact(m.waRevenue)}</em><em className="rcs">RCS {compact(m.rcsRevenue)}</em></div><small>Projected revenue</small></div>)}</div>
       </Card>
-      <div className="table-card forecast-table"><table><thead><tr><th>Month</th><th>Client</th><th>Chatbot</th><th>WA</th><th>RCS</th><th>Total</th><th>Margin</th><th>Margin %</th></tr></thead><tbody>{visible.map((r:any)=>{const rev=totalRevenue(r),cost=totalCost(r),m=rev-cost;return <tr key={r.client+'-'+r.month}><td>{monthLabel(r.month)}</td><td><b>{r.client}</b><small><span className="forecast-chip">Forecast</span></small></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.waRevenue)}</td><td>{compact(r.rcsRevenue)}</td><td><b>{compact(rev)}</b></td><td className={m<0?'bad':'good'}><b>{compact(m)}</b></td><td>{percent(m,rev)}</td></tr>})}</tbody></table>{!visible.length&&<div className="empty">No run-rate forecast is available. Add a live chatbot R&M month or WA/RCS consumption history.</div>}</div>
+      <div className="forecast-side-stack"><Card title="Projected by revenue stream" sub="Achieved plus future forecast."><div className="forecast-stream-summary">{streams.map(s=><div className={s.className} key={s.label}><b>{s.label}</b><span>{compact(s.achieved+s.future)} projected</span><small>{compact(s.achieved)} achieved</small></div>)}</div></Card><Card title="Projected vs achieved" sub="Progress against the combined forecast."><div className="forecast-progress"><div><b>{achievement.toFixed(1)}% achieved</b><span>{compact(achieved)} of {compact(projected)}</span></div><div><b>{compact(future)} remaining</b><span>Future forecast</span></div></div></Card></div>
     </div>
+    <div className="table-card forecast-table"><table><thead><tr><th>Month</th><th>Chatbot</th><th>WA consumables</th><th>RCS consumables</th><th>Projected</th><th>Achieved</th><th>Remaining</th></tr></thead><tbody>{forecastMonths.map((m:any)=><tr key={m.month}><td><b>{monthLabel(m.month)}</b></td><td>{compact(m.chatbotRevenue)}</td><td>{compact(m.waRevenue)}</td><td>{compact(m.rcsRevenue)}</td><td><b>{compact(m.totalRevenue)}</b></td><td>{compact(0)}</td><td><b>{compact(m.totalRevenue)}</b></td></tr>)}</tbody></table>{!forecastMonths.length&&<div className="empty">No run-rate forecast is available. Add a live chatbot R&M month or WA/RCS consumption history.</div>}</div>
   </div>;
 }
 const clientKey = (value: string) =>
