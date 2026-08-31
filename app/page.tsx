@@ -449,7 +449,7 @@ export default function Home() {
               )}
             </div>
           )}
-          <span>{view === 'forecast' ? 'Forecast · Chatbot R&M only' : 'Chatbot R&M + WA + RCS'}</span>
+          <span>{view === 'forecast' ? 'Forecast · live chatbot run-rate + WA + RCS consumption' : 'Chatbot R&M + WA + RCS · from Apr 2026'}</span>
         </div>
         {view === 'overview' ? (
           <div className="content">
@@ -675,21 +675,23 @@ export default function Home() {
 
 function ForecastView({ rows, monthly, query }: { rows: any[]; monthly: any[]; query: string }) {
   const visible = rows.filter((r) => r.client.toLowerCase().includes(query.toLowerCase()));
-  const revenue = visible.reduce((s, r) => s + Number(r.chatbotRevenue || 0), 0);
-  const cost = visible.reduce((s, r) => s + Number(r.chatbotCost || 0), 0);
+  const totalRevenue = (r:any) => Number(r.chatbotRevenue||0)+Number(r.waRevenue||0)+Number(r.rcsRevenue||0);
+  const totalCost = (r:any) => Number(r.chatbotCost||0)+Number(r.waCost||0)+Number(r.rcsCost||0);
+  const revenue = visible.reduce((s, r) => s + totalRevenue(r), 0);
+  const cost = visible.reduce((s, r) => s + totalCost(r), 0);
   const margin = revenue - cost;
   return <div className="content forecast-view">
     <div className="kpis">
-      <Kpi label="Forecast revenue" value={compact(revenue)} note="Future Chatbot R&M months" icon={<TrendingUp />} />
-      <Kpi label="Forecast cost" value={compact(cost)} note="Future vendor cost" icon={<WalletCards />} />
-      <Kpi label="Forecast margin" value={compact(margin)} note={percent(margin, revenue) + ' forecast'} icon={<BarChart3 />} />
-      <Kpi label="Forecast clients" value={String(new Set(visible.map(r => r.client)).size)} note="Live projects with future rows" icon={<Users />} />
+      <Kpi label="Forecast revenue" value={compact(revenue)} note="Chatbot + WA + RCS" icon={<TrendingUp />} />
+      <Kpi label="Forecast cost" value={compact(cost)} note="Combined delivery cost" icon={<WalletCards />} />
+      <Kpi label="Forecast margin" value={compact(margin)} note={percent(margin, revenue) + ' combined'} icon={<BarChart3 />} />
+      <Kpi label="Forecast clients" value={String(new Set(visible.map(r => r.client)).size)} note="Projected clients" icon={<Users />} />
     </div>
     <div className="dashboard-grid forecast-grid">
-      <Card title="Monthly chatbot forecast" sub="Actual reporting stops at the current month; future R&M rows appear here as Forecast.">
-        <div className="forecast-months">{monthly.map((m:any) => <div key={m.month}><span>{monthLabel(m.month)}</span><b>{compact(m.chatbotRevenue)}</b><small>{compact(m.chatbotCost)} cost · {compact(m.chatbotMargin)} margin</small></div>)}</div>
+      <Card title="Monthly combined forecast" sub="Live chatbot run-rate plus the trailing 3-month WA and RCS consumption average.">
+        <div className="forecast-months">{monthly.map((m:any) => <div key={m.month}><span>{monthLabel(m.month)}</span><b>{compact(m.totalRevenue)}</b><small>{compact(m.chatbotRevenue)} chatbot · {compact(m.waRevenue)} WA · {compact(m.rcsRevenue)} RCS · {compact(m.totalRevenue-m.totalCost)} margin</small></div>)}</div>
       </Card>
-      <div className="table-card forecast-table"><table><thead><tr><th>Month</th><th>Client</th><th>Type</th><th>Revenue</th><th>Cost</th><th>Margin</th><th>Margin %</th></tr></thead><tbody>{visible.map((r:any)=><tr key={r.client+'-'+r.month}><td>{monthLabel(r.month)}</td><td><b>{r.client}</b></td><td><span className="forecast-chip">Forecast</span></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.chatbotCost)}</td><td className={r.chatbotRevenue-r.chatbotCost<0?'bad':'good'}>{compact(r.chatbotRevenue-r.chatbotCost)}</td><td>{percent(r.chatbotRevenue-r.chatbotCost,r.chatbotRevenue)}</td></tr>)}</tbody></table>{!visible.length&&<div className="empty">No future Chatbot R&M rows are available.</div>}</div>
+      <div className="table-card forecast-table"><table><thead><tr><th>Month</th><th>Client</th><th>Chatbot</th><th>WA</th><th>RCS</th><th>Total</th><th>Margin</th><th>Margin %</th></tr></thead><tbody>{visible.map((r:any)=>{const rev=totalRevenue(r),cost=totalCost(r),m=rev-cost;return <tr key={r.client+'-'+r.month}><td>{monthLabel(r.month)}</td><td><b>{r.client}</b><small><span className="forecast-chip">Forecast</span></small></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.waRevenue)}</td><td>{compact(r.rcsRevenue)}</td><td><b>{compact(rev)}</b></td><td className={m<0?'bad':'good'}><b>{compact(m)}</b></td><td>{percent(m,rev)}</td></tr>})}</tbody></table>{!visible.length&&<div className="empty">No run-rate forecast is available. Add a live chatbot R&M month or WA/RCS consumption history.</div>}</div>
     </div>
   </div>;
 }
