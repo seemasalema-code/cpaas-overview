@@ -25,9 +25,7 @@ import {
   Presentation,
   Search,
   TrendingUp,
-  Upload,
   WalletCards,
-  X,
 } from 'lucide-react';
 import { consoleData } from '@/lib/console-data';
 import { clientMonthly } from '@/lib/client-monthly';
@@ -78,8 +76,7 @@ export default function Home() {
     ),
     [projectSort, setProjectSort] = useState<ProjectSort>('default'),
     [monthOpen, setMonthOpen] = useState(false),
-    [present, setPresent] = useState(false),
-    [uploadOpen, setUploadOpen] = useState(false);
+    [present, setPresent] = useState(false);
   const liveData = data.consoleData,
     liveMonthly = data.clientMonthly;
   const monthPickerRef = useRef<HTMLDivElement>(null);
@@ -287,13 +284,14 @@ export default function Home() {
         </nav>
         <div className="source">
           <span>Shared dataset</span>
-          <b>Manual CSV snapshot</b>
+          <b>Live Google Sheet</b>
           <small>
             {data.updatedAt
               ? `Updated ${new Date(data.updatedAt).toLocaleString('en-IN')}`
               : `Snapshot · ${liveData.asOf}`}
           </small>
           <small>{data.updatedBy}</small>
+          <small>Automatically refreshes every 5 minutes</small>
           <a href={liveData.sourceUrl} target="_blank">
             Open Google Sheet <ExternalLink />
           </a>
@@ -312,10 +310,6 @@ export default function Home() {
             </h1>
           </div>
           <div className="actions">
-            <button onClick={() => setUploadOpen(true)}>
-              <Upload />
-              Upload CSV
-            </button>
             <button onClick={() => setPresent(!present)}>
               <Presentation />
               {present ? 'Exit' : 'Present'}
@@ -646,21 +640,6 @@ export default function Home() {
           />
         )}
       </section>
-      {uploadOpen && (
-        <UploadDialog
-          sourceUrl={liveData.sourceUrl}
-          onClose={() => setUploadOpen(false)}
-          onUploaded={(next) => {
-            setData(next);
-            setSelectedMonths(
-              Array.from(
-                new Set<string>(next.clientMonthly.map((r: any) => r.month)),
-              ).sort(),
-            );
-            setUploadOpen(false);
-          }}
-        />
-      )}
     </main>
   );
 }
@@ -714,11 +693,6 @@ function Card({
       {children}
     </article>
   );
-}
-function UploadDialog({sourceUrl,onClose,onUploaded}:{sourceUrl:string,onClose:()=>void,onUploaded:(data:any)=>void}){
-  const [busy,setBusy]=useState(false),[error,setError]=useState('');
-  const submit=async(e:React.FormEvent<HTMLFormElement>)=>{e.preventDefault();setBusy(true);setError('');const form=new FormData(e.currentTarget);form.set('sourceUrl',sourceUrl);try{const response=await fetch('/api/upload',{method:'POST',body:form});const body=await response.json();if(!response.ok)throw new Error(body.error||'Upload failed.');onUploaded(body)}catch(x){setError(x instanceof Error?x.message:'Upload failed.')}finally{setBusy(false)}};
-  return <div className="upload-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><form className="upload-dialog" onSubmit={submit}><button type="button" className="upload-close" onClick={onClose} aria-label="Close"><X/></button><div className="upload-icon"><Upload/></div><h2>Update shared console data</h2><p>Export each source tab as CSV, select all three files, then publish one verified snapshot for every authorised viewer.</p><label><span>Chatbot Projects CSV</span><input required type="file" name="projects" accept=".csv,text/csv"/></label><label><span>WA_Consumables CSV</span><input required type="file" name="wa" accept=".csv,text/csv"/></label><label><span>RCS_Consumables CSV</span><input required type="file" name="rcs" accept=".csv,text/csv"/></label>{error&&<div className="upload-error">{error}</div>}<div className="upload-actions"><button type="button" onClick={onClose}>Cancel</button><button disabled={busy} type="submit">{busy?'Updating…':'Update shared console'}</button></div><small>Open consoles automatically check for a newer shared snapshot every 5 minutes.</small></form></div>;
 }
 function ClientRiskTable({
   rows,
