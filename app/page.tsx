@@ -81,12 +81,17 @@ export default function Home() {
   useEffect(() => setMonthOpen(false), [view]);
   useEffect(() => {
     let active = true;
+    let retryTimer:ReturnType<typeof setTimeout>|undefined;
     const refresh = () =>
-      fetch('/api/dashboard', { cache: 'no-store' })
+      fetch(`/api/dashboard?refresh=${Date.now()}`, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((x) => {
           if (active && x) {
             setData(x);
+            if(x.sourceError){
+              clearTimeout(retryTimer);
+              retryTimer=setTimeout(refresh,60_000);
+            }
             const months = Array.from(
               new Set<string>(x.clientMonthly.map((r: any) => r.month)),
             ).sort();
@@ -102,6 +107,7 @@ export default function Home() {
     return () => {
       active = false;
       clearInterval(timer);
+      clearTimeout(retryTimer);
     };
   }, []);
   useEffect(() => {

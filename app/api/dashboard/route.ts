@@ -10,6 +10,6 @@ export async function GET(){
   const live=await loadGoogleSheetDashboard();
   return NextResponse.json({...live,updatedAt:new Date().toISOString(),updatedBy:'Live Google Sheet'},{headers:{'Cache-Control':'no-store'}});
  }catch{
-  return NextResponse.json({consoleData:currentSource(consoleData),clientMonthly,updatedAt:null,updatedBy:'Source temporarily unavailable'},{headers:{'Cache-Control':'no-store'}});
+  return NextResponse.json({consoleData:currentSource(consoleData),clientMonthly,updatedAt:null,updatedBy:'Source temporarily unavailable',sourceError:true},{headers:{'Cache-Control':'no-store'}});
  }
 }
