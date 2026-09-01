@@ -936,7 +936,7 @@ function ProjectSegmentTable(props: {
   onReset: () => void;
   onOpenMonths: () => void;
 }) {
-  const [segment, setSegment] = useState<'all' | 'negative' | 'low' | 'strong'>(
+  const [segment, setSegment] = useState<'all' | 'negative' | 'low' | 'mid' | 'strong' | 'unpriced'>(
     'all',
   );
   const { rows } = props,
@@ -945,8 +945,12 @@ function ProjectSegmentTable(props: {
         ? p.margin < 0
         : segment === 'low'
           ? p.margin >= 0 && p.revenue > 0 && p.margin / p.revenue < 0.08
+          : segment === 'mid'
+            ? p.revenue > 0 && p.margin / p.revenue >= 0.08 && p.margin / p.revenue < 0.15
           : segment === 'strong'
             ? p.revenue > 0 && p.margin / p.revenue >= 0.15
+            : segment === 'unpriced'
+              ? p.revenue <= 0 && p.margin >= 0
             : true,
     );
   const choose = (next: typeof segment) => {
@@ -1002,6 +1006,14 @@ function ProjectSegmentTable(props: {
             <small>Margin improvement opportunity</small>
           </button>
           <button
+            className={segment === 'mid' ? 'active' : ''}
+            onClick={() => choose('mid')}
+          >
+            <span>8–15% margin</span>
+            <b>{rows.filter((p) => p.revenue > 0 && p.margin / p.revenue >= 0.08 && p.margin / p.revenue < 0.15).length}</b>
+            <small>Stable, with room to improve</small>
+          </button>
+          <button
             className={segment === 'strong' ? 'active' : ''}
             onClick={() => choose('strong')}
           >
@@ -1014,6 +1026,14 @@ function ProjectSegmentTable(props: {
               }
             </b>
             <small>15% and above</small>
+          </button>
+          <button
+            className={segment === 'unpriced' ? 'active' : ''}
+            onClick={() => choose('unpriced')}
+          >
+            <span>No revenue recorded</span>
+            <b>{rows.filter((p) => p.revenue <= 0 && p.margin >= 0).length}</b>
+            <small>Commercial data missing</small>
           </button>
         </div>
       </div>
