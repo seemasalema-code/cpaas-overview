@@ -19,7 +19,9 @@ let pending:Promise<Dashboard>|null=null;
 const FIVE_MINUTES=300_000;
 
 async function fetchCsv(source:{name:string;range:string}){
-  const query=new URLSearchParams({tqx:'out:csv',sheet:source.name,range:source.range,tq:'select * where A is not null'});
+  // Do not filter on column A. Some source tabs (notably RCS) begin in
+  // column B, so an A-based query silently removes every valid data row.
+  const query=new URLSearchParams({tqx:'out:csv',sheet:source.name,range:source.range});
   const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?${query}`,{
     cache:'no-store',
     signal:AbortSignal.timeout(55_000),
