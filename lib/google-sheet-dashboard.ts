@@ -7,10 +7,10 @@ export const SOURCE_SPREADSHEET_URL=`https://docs.google.com/spreadsheets/d/${SO
 // workbook. The Visualization feed reads only populated table rows and is much
 // more reliable from the hosted worker.
 const SHEETS={
-  projects:'Chatbot Projects',
-  rm:'Chatbot R&M',
-  wa:'WA_Consumables',
-  rcs:'RCS_Consumables',
+  projects:{name:'Chatbot Projects',range:'A1:Z2000'},
+  rm:{name:'Chatbot R&M',range:'A1:Z10000'},
+  wa:{name:'WA_Consumables',range:'A1:G10000'},
+  rcs:{name:'RCS_Consumables',range:'A1:G10000'},
 } as const;
 
 type Dashboard=ReturnType<typeof buildDashboard>;
@@ -18,8 +18,8 @@ let cached:{data:Dashboard;loadedAt:number}|null=null;
 let pending:Promise<Dashboard>|null=null;
 const FIVE_MINUTES=300_000;
 
-async function fetchCsv(sheet:string){
-  const query=new URLSearchParams({tqx:'out:csv',sheet,tq:'select *'});
+async function fetchCsv(source:{name:string;range:string}){
+  const query=new URLSearchParams({tqx:'out:csv',sheet:source.name,range:source.range,tq:'select * where A is not null'});
   const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?${query}`,{
     cache:'no-store',
     signal:AbortSignal.timeout(55_000),

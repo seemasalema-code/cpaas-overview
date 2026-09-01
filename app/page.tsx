@@ -65,6 +65,8 @@ export default function Home() {
       [data.clientMonthly],
     );
   const [view, setView] = useState<View>('overview'),
+    [isLive, setIsLive] = useState(false),
+    [syncDelayed, setSyncDelayed] = useState(false),
     [riskClients, setRiskClients] = useState(false),
     [query, setQuery] = useState(''),
     [industry, setIndustry] = useState('All industries'),
@@ -87,11 +89,15 @@ export default function Home() {
         .then((r) => (r.ok ? r.json() : null))
         .then((x) => {
           if (active && x) {
-            setData(x);
             if(x.sourceError){
+              setSyncDelayed(true);
               clearTimeout(retryTimer);
               retryTimer=setTimeout(refresh,60_000);
+              return;
             }
+            setData(x);
+            setIsLive(true);
+            setSyncDelayed(false);
             const months = Array.from(
               new Set<string>(x.clientMonthly.map((r: any) => r.month)),
             ).sort();
@@ -323,7 +329,8 @@ export default function Home() {
           </a>
         </div>
       </aside>
-      <section className="workspace">
+      <section className={`workspace ${!isLive?'sync-pending':''}`}>
+        {!isLive && <div className="live-sync-state"><span></span><b>{syncDelayed?'Live Sheet is taking longer than expected':'Connecting to live Google Sheet'}</b><small>{syncDelayed?'Retrying automatically—stored figures are hidden to avoid showing outdated numbers.':'Loading the latest Projects, R&M, WhatsApp and RCS figures…'}</small></div>}
         <header>
           <div>
             <p>Commercial intelligence</p>
