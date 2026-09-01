@@ -312,13 +312,13 @@ export default function Home() {
           </small>
           <small>{data.updatedBy}</small>
           <small>Automatically refreshes every 5 minutes</small>
-          <a href={liveData.sourceUrl} target="_blank">
+          <a href="https://docs.google.com/spreadsheets/d/1udQZmSHEpLWuQJO2k0t4UvA3zU8fUFkvx_1lIfINId8/edit?gid=888299704#gid=888299704" target="_blank">
             Open Google Sheet <ExternalLink />
           </a>
         </div>
       </aside>
-      <section className={`workspace ${!isLive?'sync-pending':''}`}>
-        {!isLive && <div className="live-sync-state"><span></span><b>{syncDelayed?'Live Sheet is taking longer than expected':'Connecting to live Google Sheet'}</b><small>{syncDelayed?'Retrying automatically—stored figures are hidden to avoid showing outdated numbers.':'Loading the latest Projects, R&M, WhatsApp and RCS figures…'}</small></div>}
+      <section className="workspace">
+        {!isLive && <div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Sheet refresh is taking longer than expected':'Refreshing live Google Sheet'}</b><small>{syncDelayed?'Showing the last verified snapshot while the console retries automatically.':'The last verified snapshot is ready; live figures will replace it automatically.'}</small></div></div>}
         <header>
           <div>
             <p>Commercial intelligence</p>
