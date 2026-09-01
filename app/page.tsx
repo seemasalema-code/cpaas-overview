@@ -84,32 +84,20 @@ export default function Home() {
   useEffect(() => {
     let active = true;
     let retryTimer:ReturnType<typeof setTimeout>|undefined;
-    const refresh = () =>
-      fetch(`/api/dashboard?refresh=${Date.now()}`, { cache: 'no-store' })
+    const apply = (x:any) => {
+      if (!active || !x) return;
+      if(x.sourceError){setSyncDelayed(true);clearTimeout(retryTimer);retryTimer=setTimeout(()=>refresh(true),60_000);return;}
+      setData(x);setIsLive(true);setSyncDelayed(false);
+      const months=Array.from(new Set<string>(x.clientMonthly.map((r:any)=>r.month))).sort();
+      setSelectedMonths((current:string[])=>{const valid=current.filter((m)=>months.includes(m));return valid.length?valid:months;});
+    };
+    const refresh = (force=false) =>
+      fetch(`/api/dashboard${force?'?force=1':''}`, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
-        .then((x) => {
-          if (active && x) {
-            if(x.sourceError){
-              setSyncDelayed(true);
-              clearTimeout(retryTimer);
-              retryTimer=setTimeout(refresh,60_000);
-              return;
-            }
-            setData(x);
-            setIsLive(true);
-            setSyncDelayed(false);
-            const months = Array.from(
-              new Set<string>(x.clientMonthly.map((r: any) => r.month)),
-            ).sort();
-            setSelectedMonths((current: string[]) => {
-              const valid = current.filter((m) => months.includes(m));
-              return valid.length ? valid : months;
-            });
-          }
-        })
+        .then(apply)
         .catch(() => {});
-    refresh();
-    const timer = setInterval(refresh, 300000);
+    refresh(false);
+    const timer = setInterval(()=>refresh(true), 300000);
     return () => {
       active = false;
       clearInterval(timer);
