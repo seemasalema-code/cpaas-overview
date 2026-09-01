@@ -5,7 +5,7 @@ export const SOURCE_SPREADSHEET_URL=`https://docs.google.com/spreadsheets/d/${SO
 
 // Use the same filter-independent source feeds as BotPulse so both consoles
 // always receive identical Projects and Chatbot R&M rows.
-const SHEETS={projects:1640000001,rm:1640000002,wa:172604510,rcs:269889098} as const;
+const SHEETS={projects:888299704,rm:559338930,wa:172604510,rcs:269889098} as const;
 
 async function fetchCsv(gid:number){
   const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${gid}`,{cache:'no-store'});
