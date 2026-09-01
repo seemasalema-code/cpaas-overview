@@ -784,9 +784,17 @@ function Client360({
   );
   const current = rows.find((r) => r.key === selected) || null;
   const history = current
-    ? monthly
-        .filter((r) => clientKey(r.client) === current.key)
-        .sort((a, b) => a.month.localeCompare(b.month))
+    ? Array.from(
+        monthly
+          .filter((r) => clientKey(r.client) === current.key)
+          .reduce((months: Map<string, any>, r: any) => {
+            const row = months.get(r.month) || {month:r.month,chatbotRevenue:0,chatbotCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0};
+            for (const field of ['chatbotRevenue','chatbotCost','waRevenue','waCost','rcsRevenue','rcsCost']) row[field] += Number(r[field] || 0);
+            months.set(r.month, row);
+            return months;
+          }, new Map<string, any>())
+          .values(),
+      ).sort((a: any, b: any) => a.month.localeCompare(b.month))
     : [];
   return (
     <div className="client360-wrap">
@@ -815,8 +823,17 @@ function Client360({
             <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}{current.chatbotMargin < 0 && <em className="negative-chip">Negative margin</em>}</b></span><button onClick={() => setSelected(null)}>×</button></div>
             <div className="client360-finance"><div><small>Chatbot</small><b>{compact(current.chatbotRevenue)}</b></div><div><small>WA</small><b>{compact(current.waRevenue)}</b></div><div><small>RCS</small><b>{compact(current.rcsRevenue)}</b></div><div><small>Chatbot margin</small><b className={current.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(current.chatbotMargin)}</b></div></div>
             <div className="client360-projects"><h3>Chatbots</h3>{current.projects.map((p:any) => <div key={p.project}><b>{p.project}</b><span>{p.type} · {p.status}</span></div>)}</div>
-            <h3>Month-wise revenue</h3>
-            <div className="client360-history">{history.map((r:any) => <div key={r.month}><b>{monthLabel(r.month)}</b><span>Total revenue <strong>{compact(Number(r.chatbotRevenue||0)+Number(r.waRevenue||0)+Number(r.rcsRevenue||0))}</strong></span></div>)}</div>
+            <h3>Monthly commercial trend</h3>
+            <div className="client360-history">{history.map((r:any,index:number) => {
+              const total=Number(r.chatbotRevenue||0)+Number(r.waRevenue||0)+Number(r.rcsRevenue||0), cost=Number(r.chatbotCost||0)+Number(r.waCost||0)+Number(r.rcsCost||0);
+              const previous=index?history[index-1]:null, previousTotal=previous?Number(previous.chatbotRevenue||0)+Number(previous.waRevenue||0)+Number(previous.rcsRevenue||0):0;
+              const movement=previousTotal?((total-previousTotal)/previousTotal)*100:null;
+              return <div key={r.month}>
+                <span className="history-month"><b>{monthLabel(r.month)}</b><em>{movement===null?'Starting month':`${movement>=0?'▲':'▼'} ${Math.abs(movement).toFixed(1)}% MoM`}</em></span>
+                <span className="history-total"><small>Total revenue</small><strong>{compact(total)}</strong><em>{percent(total-cost,total)} margin · {compact(total-cost)}</em></span>
+                <span className="history-mix"><small>Channel mix</small><em>Chatbot <b>{compact(r.chatbotRevenue||0)}</b></em><em>WA <b>{compact(r.waRevenue||0)}</b></em><em>RCS <b>{compact(r.rcsRevenue||0)}</b></em></span>
+              </div>;
+            })}</div>
           </>}
         </aside>
       </div>
