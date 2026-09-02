@@ -10,7 +10,7 @@ const SHEETS={
   projects:{name:'Chatbot Projects',range:'A1:AS5000'},
   rm:{name:'Chatbot R&M',range:'A1:AM10000'},
   wa:{name:'WA_Consumables',range:'A1:G10000'},
-  rcs:{name:'RCS_Consumables',range:'B1:H10000'},
+  rcs:{name:'RCS_Consumables',range:'A1:Z5000'},
 } as const;
 
 type Dashboard=ReturnType<typeof buildDashboard>;
