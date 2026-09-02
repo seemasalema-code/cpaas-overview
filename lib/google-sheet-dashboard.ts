@@ -7,8 +7,8 @@ export const SOURCE_SPREADSHEET_URL=`https://docs.google.com/spreadsheets/d/${SO
 // workbook. The Visualization feed reads only populated table rows and is much
 // more reliable from the hosted worker.
 const SHEETS={
-  projects:{name:'Chatbot Projects',range:'A1:Z2000'},
-  rm:{name:'Chatbot R&M',range:'A1:Z10000'},
+  projects:{name:'Chatbot Projects',range:'A1:AS5000'},
+  rm:{name:'Chatbot R&M',range:'A1:AM10000'},
   wa:{name:'WA_Consumables',range:'A1:G10000'},
   rcs:{name:'RCS_Consumables',range:'A1:G10000'},
 } as const;
