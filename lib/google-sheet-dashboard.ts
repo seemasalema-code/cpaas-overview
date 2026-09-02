@@ -40,7 +40,7 @@ function rowsToCsv(rows:unknown[][]){
   }).join(',')).join('\n');
 }
 
-async function loadPublishedMirror(){
+async function loadPublishedWorkbook(){
   const response=await fetch(`${PUBLISHED_MIRROR}?_=${Date.now()}`,{cache:'no-store',signal:AbortSignal.timeout(15_000)});
   if(!response.ok)throw new Error(`Published dashboard mirror returned ${response.status}`);
   const script=await response.text();
@@ -48,23 +48,29 @@ async function loadPublishedMirror(){
   const workbook=JSON.parse(json) as Record<string,unknown[][]>;
   const required=['Chatbot Projects','Chatbot R&M','WA_Consumables','RCS_Consumables'];
   if(required.some(name=>!Array.isArray(workbook[name])||!workbook[name].length))throw new Error('Published dashboard mirror is incomplete');
-  return buildDashboard(rowsToCsv(workbook['Chatbot Projects']),rowsToCsv(workbook['Chatbot R&M']),rowsToCsv(workbook.WA_Consumables),rowsToCsv(workbook.RCS_Consumables),SOURCE_SPREADSHEET_URL);
+  return workbook;
 }
 
-export async function loadGoogleSheetDashboard(){
-  if(cached&&Date.now()-cached.loadedAt<FIVE_MINUTES)return cached.data;
+export async function loadGoogleSheetDashboard(force=false){
+  if(!force&&cached&&Date.now()-cached.loadedAt<FIVE_MINUTES)return cached.data;
   if(pending)return pending;
   pending=(async()=>{
-    const [projects,rm,wa,rcs]=await Promise.all([
+    const mirror=await loadPublishedWorkbook();
+    const settled=await Promise.allSettled([
       fetchCsv(SHEETS.projects),fetchCsv(SHEETS.rm),fetchCsv(SHEETS.wa),fetchCsv(SHEETS.rcs),
     ]);
+    const names=['Chatbot Projects','Chatbot R&M','WA_Consumables','RCS_Consumables'] as const;
+    const [projects,rm,wa,rcs]=settled.map((result,index)=>
+      result.status==='fulfilled'?result.value:rowsToCsv(mirror[names[index]])
+    );
     const data=buildDashboard(projects,rm,wa,rcs,SOURCE_SPREADSHEET_URL);
     cached={data,loadedAt:Date.now()};
     return data;
   })();
   try{return await pending;}catch(error){
     if(cached)return cached.data;
-    const data=await loadPublishedMirror();
+    const workbook=await loadPublishedWorkbook();
+    const data=buildDashboard(rowsToCsv(workbook['Chatbot Projects']),rowsToCsv(workbook['Chatbot R&M']),rowsToCsv(workbook.WA_Consumables),rowsToCsv(workbook.RCS_Consumables),SOURCE_SPREADSHEET_URL);
     cached={data,loadedAt:Date.now()};
     return data;
   }finally{pending=null;}

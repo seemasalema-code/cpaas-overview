@@ -10,14 +10,8 @@ const cacheStorage=()=>((globalThis as any).caches?.default as Cache|undefined);
 export async function GET(request:Request){
  const force=new URL(request.url).searchParams.get('force')==='1';
  const edge=cacheStorage(),cacheKey=new Request(CACHE_URL);
- if(edge&&!force){
-  try{
-   const hit=await edge.match(cacheKey);
-   if(hit)return new NextResponse(hit.body,{status:200,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Dashboard-Cache':'HIT'}});
-  }catch{}
- }
  try{
-  const live=await loadGoogleSheetDashboard();
+  const live=await loadGoogleSheetDashboard(force);
   const payload={...live,updatedAt:new Date().toISOString(),updatedBy:'Live Google Sheet'};
   if(edge)try{await edge.put(cacheKey,new Response(JSON.stringify(payload),{headers:{'Content-Type':'application/json','Cache-Control':'public, max-age=86400'}}));}catch{}
   return NextResponse.json(payload,{headers:{'Cache-Control':'no-store','X-Dashboard-Cache':'MISS'}});
