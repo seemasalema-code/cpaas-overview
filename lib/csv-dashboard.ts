@@ -6,7 +6,10 @@ const rk=(v:unknown)=>hk(v).replace(/\s+/g,'');
 // The source tabs do not always use the identical legal-name suffix.  Use one
 // stable key for joins, but retain the first source label for display.
 const clientKey=(v:unknown)=>hk(v).replace(/\b(private|pvt|limited|ltd|company|co)\b/g,'').replace(/\s+/g,'');
-const col=(h:string[],names:string[])=>{const w=names.map(hk);return h.findIndex(x=>w.includes(hk(x)))};
+// A few numeric/date headers are blanked by Google CSV exports when the source cell has a
+// numeric format. Named headers win; verified positional fallbacks keep the live parser aligned
+// with the workbook when that export quirk occurs.
+const col=(h:string[],names:string[],fallback=-1)=>{const w=names.map(hk),found=h.findIndex(x=>w.includes(hk(x)));return found>=0?found:fallback};
 
 export function parseCsv(text:string){
  const rows:string[][]=[];let row:string[]=[],field='',quoted=false;
@@ -27,7 +30,7 @@ const empty=(client:string,month:string,periodType:'Actual'|'Forecast'='Actual')
 export function buildDashboard(projectCsv:string,rmCsv:string,waCsv:string,rcsCsv:string,sourceUrl:string){
  const p=parseCsv(projectCsv),rm=parseCsv(rmCsv),wa=parseCsv(waCsv),rcs=parseCsv(rcsCsv);if(p.length<2)throw new Error('Chatbot Projects CSV has no data rows.');
  const pi=p.findIndex(r=>r.some(v=>hk(v)==='chatbot'));if(pi<0)throw new Error('Chatbot Projects is missing its named header row.');
- const ph=p[pi],pcClient=col(ph,['Client Legal Name','Client','Client Name']),pcProject=col(ph,['Chatbot','Project','Project Name']),pcIndustry=col(ph,['Industry']),pcOwner=col(ph,['Sales Connect','Owner','Project Owner']),pcType=col(ph,['Bot Type','Type']),pcVendor=col(ph,['Vendor']),pcStatus=col(ph,['Status','Stage']);
+ const ph=p[pi],pcClient=col(ph,['Client Legal Name','Client','Client Name'],0),pcProject=col(ph,['Chatbot','Project','Project Name'],1),pcIndustry=col(ph,['Industry'],2),pcOwner=col(ph,['Sales Connect','Owner','Project Owner'],4),pcType=col(ph,['Bot Type','Type','Platform','Channel'],5),pcVendor=col(ph,['Vendor'],7),pcStatus=col(ph,['Status','Stage'],8);
  if([pcClient,pcProject,pcStatus].some(i=>i<0))throw new Error('Chatbot Projects is missing a required named column.');
  const projects=p.slice(pi+1).filter(r=>clean(r[pcClient])||clean(r[pcProject])).map(r=>({client:clean(r[pcClient]),project:clean(r[pcProject]),industry:pcIndustry>=0?clean(r[pcIndustry])||'Unclassified':'Unclassified',owner:pcOwner>=0?clean(r[pcOwner])||'Unassigned':'Unassigned',type:pcType>=0?clean(r[pcType])||'Unspecified':'Unspecified',vendor:pcVendor>=0?clean(r[pcVendor])||'Unspecified':'Unspecified',status:clean(r[pcStatus])||'Unspecified',revenue:0,cost:0,margin:0}));
  const clientLabels=new Map<string,string>();
@@ -37,8 +40,8 @@ export function buildDashboard(projectCsv:string,rmCsv:string,waCsv:string,rcsCs
  const projectByBot=new Map<string,any[]>();projects.forEach(x=>{const key=rk(x.project),list=projectByBot.get(key)||[];list.push(x);projectByBot.set(key,list)});
  const resolveProject=(bot:string)=>{const key=rk(bot),exact=projectByBot.get(key)||[];if(exact.length===1)return exact[0];const fuzzy=projects.filter(x=>{const candidate=rk(x.project);return key.length>5&&candidate.length>5&&(candidate.includes(key)||key.includes(candidate))});return fuzzy.length===1?fuzzy[0]:null};
  const actual=new Map<string,Monthly>(),forecast=new Map<string,Monthly>(),projectTotals=new Map<string,{revenue:number;cost:number}>(),latest=new Map<string,{client:string;month:string;revenue:number;cost:number}>(),explicit=new Set<string>(),liveKeys=new Set(projects.filter(x=>hk(x.status)==='live').map(x=>rk(x.project)));
- const ri=rm.findIndex(r=>r.some(v=>hk(v)==='chatbot')&&r.some(v=>hk(v)==='month'));
- if(ri>=0){const h=rm[ri],cc=col(h,['Client','Client Name','Client Legal Name']),cb=col(h,['Chatbot','Project','Project Name']),cm=col(h,['Month','Billing Month','Revenue Month']),cr=col(h,['Total Netcore Revenue','Netcore Total Revenue','Total Revenue Netcore','Total Revenue','Monthly Revenue','Revenue']),co=col(h,['Total Vendor Cost','Vendor Total Cost','Total Cost Vendor','Total Cost','Vendor Cost','Cost']);if([cb,cm,cr,co].some(i=>i<0))throw new Error('Chatbot R&M is missing a required named financial column.');
+ const ri=rm.findIndex(r=>r.some(v=>hk(v)==='chatbot')&&(r.some(v=>hk(v)==='month')||(r.some(v=>hk(v)==='client')&&r.some(v=>hk(v)==='vendor'))));
+ if(ri>=0){const h=rm[ri],cc=col(h,['Client','Client Name','Client Legal Name'],0),cb=col(h,['Chatbot','Project','Project Name'],1),cm=col(h,['Month','Billing Month','Revenue Month'],3),cr=col(h,['Total Netcore Revenue','Netcore Total Revenue','Total Revenue Netcore','Total Revenue','Monthly Revenue','Revenue'],34),co=col(h,['Total Vendor Cost','Vendor Total Cost','Total Cost Vendor','Total Cost','Vendor Cost','Cost'],19);if([cb,cm,cr,co].some(i=>i<0))throw new Error('Chatbot R&M is missing a required financial column.');
   rm.slice(ri+1).forEach(r=>{const bot=clean(r[cb]),matched=resolveProject(bot),client=resolveClient((cc>=0?clean(r[cc]):'')||matched?.client||'',matched?.project||bot),month=monthValue(r[cm]);if(!client||!bot||!month||month<START)return;const revenue=num(r[cr]),cost=num(r[co]);if(!revenue&&!cost)return;const bk=rk(matched?.project||bot);
    if(month<=current){const key=client+'\u0000'+month,x=actual.get(key)||empty(client,month);x.chatbotRevenue+=revenue;x.chatbotCost+=cost;actual.set(key,x);const t=projectTotals.get(bk)||{revenue:0,cost:0};t.revenue+=revenue;t.cost+=cost;projectTotals.set(bk,t);const old=latest.get(bk);if(!old||month>old.month)latest.set(bk,{client,month,revenue,cost});}
    else if(month<=last&&liveKeys.has(bk)){const key=client+'\u0000'+month,x=forecast.get(key)||empty(client,month,'Forecast');x.chatbotRevenue+=revenue;x.chatbotCost+=cost;forecast.set(key,x);explicit.add(bk+'\u0000'+month);}

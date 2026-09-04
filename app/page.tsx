@@ -26,6 +26,20 @@ import {
   Users,
   WalletCards,
 } from 'lucide-react';
+import {buildDashboard} from '@/lib/csv-dashboard';
+
+// The dashboard reads these complete exports directly in the viewer's browser. Google Sheet
+// data is never written to localStorage, a repository snapshot, or a server-side cache.
+const SOURCE_SPREADSHEET_ID='1udQZmSHEpLWuQJO2k0t4UvA3zU8fUFkvx_1lIfINId8';
+const SOURCE_URL=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/edit?gid=888299704#gid=888299704`;
+const LIVE_TABS=[888299704,559338930,172604510,269889098] as const;
+const readLiveCsv=(gid:number)=>{
+  const controller=new AbortController();
+  const timeout=window.setTimeout(()=>controller.abort(),90_000);
+  return fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${gid}`,{cache:'no-store',signal:controller.signal})
+    .then(async response=>{if(!response.ok)throw new Error(`Google Sheet export returned ${response.status}`);const text=await response.text();if(!text.trim()||/^\s*<!doctype html/i.test(text))throw new Error('Google Sheet export is not publicly readable');return text;})
+    .finally(()=>window.clearTimeout(timeout));
+};
 const compact = (v: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -88,8 +102,11 @@ export default function Home() {
     const refresh = () => {
       if(refreshing)return Promise.resolve();
       refreshing=true;
-      return fetch('/api/dashboard', { cache: 'no-store' })
-        .then((r) => r.json().catch(() => null))
+      return Promise.all(LIVE_TABS.map(readLiveCsv))
+        .then(([projects,rm,wa,rcs])=>({
+          ...buildDashboard(projects,rm,wa,rcs,SOURCE_URL),
+          updatedAt:new Date().toISOString(),updatedBy:'Live Google Sheet',
+        }))
         .then(apply)
         .catch(() => {if(active){setSyncDelayed(true);setRetryNow(()=>refresh);}})
         .finally(()=>{refreshing=false;});
