@@ -142,11 +142,11 @@ export default function Home() {
       document.removeEventListener('keydown', escape);
     };
   }, [monthOpen]);
-  if (!liveData) {
-    return <main className="initial-live-state"><div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Google Sheet is taking longer than usual':'Loading live Google Sheet data'}</b><small>{syncDelayed?'The console will retry automatically. No saved dashboard snapshot is being shown.':'Reading the current Projects, R&M, WhatsApp and RCS data…'}</small>{syncDelayed&&<button type="button" className="live-retry" onClick={()=>retryNow?.()}>Retry now</button>}</div></div></main>;
-  }
-  const projects = liveData.projects,
-    clients = liveData.clients;
+  // Keep every hook below unconditional. The dashboard starts with no live data and
+  // switches to data after the Sheet reply; returning before these hooks would change
+  // the hook order and blank the page on the first successful refresh.
+  const projects = liveData?.projects ?? [],
+    clients = liveData?.clients ?? [];
   const industries = [
       'All industries',
       ...Array.from(new Set(projects.map((p) => p.industry))).sort(),
@@ -245,7 +245,7 @@ export default function Home() {
       ),
     [query, periodClients],
   );
-  const selectedMonthly = liveData.monthly.filter((m: any) =>
+  const selectedMonthly = (liveData?.monthly ?? []).filter((m: any) =>
     selectedMonths.includes(m.month),
   );
   const latest = selectedMonthly.at(-1),
@@ -278,6 +278,9 @@ export default function Home() {
       },
     ],
     colors = ['#8db9a6', '#9ca9d9', '#e8b98b'];
+  if (!liveData) {
+    return <main className="initial-live-state"><div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Google Sheet is taking longer than usual':'Loading live Google Sheet data'}</b><small>{syncDelayed?'The console will retry automatically. No saved dashboard snapshot is being shown.':'Reading the current Projects, R&M, WhatsApp and RCS data…'}</small>{syncDelayed&&<button type="button" className="live-retry" onClick={()=>retryNow?.()}>Retry now</button>}</div></div></main>;
+  }
   return (
     <main className="app">
       <aside>
