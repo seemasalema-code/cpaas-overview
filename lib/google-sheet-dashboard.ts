@@ -3,28 +3,19 @@ import {buildDashboard} from '@/lib/csv-dashboard';
 export const SOURCE_SPREADSHEET_ID='1udQZmSHEpLWuQJO2k0t4UvA3zU8fUFkvx_1lIfINId8';
 export const SOURCE_SPREADSHEET_URL=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/edit?gid=888299704#gid=888299704`;
 
-// Google’s /export endpoint expands formatting and can take minutes for this
-// workbook. The Visualization feed reads only populated table rows and is much
-// more reliable from the hosted worker.
+// Full-tab CSV export bypasses temporary Sheet filters and always reflects every
+// populated row. It grows automatically as the workbook grows.
 const SHEETS={
-  projects:{name:'Chatbot Projects',range:'A1:Z2000'},
-  rm:{name:'Chatbot R&M',range:'A1:Z10000'},
-  wa:{name:'WA_Consumables',range:'A1:G10000'},
-  rcs:{name:'RCS_Consumables',range:'A1:G10000'},
+  projects:{gid:888299704},
+  rm:{gid:559338930},
+  wa:{gid:172604510},
+  rcs:{gid:269889098},
 } as const;
 
-type Dashboard=ReturnType<typeof buildDashboard>;
-let cached:{data:Dashboard;loadedAt:number}|null=null;
-let pending:Promise<Dashboard>|null=null;
-const FIVE_MINUTES=300_000;
-
-async function fetchCsv(source:{name:string;range:string}){
-  // Do not filter on column A. Some source tabs (notably RCS) begin in
-  // column B, so an A-based query silently removes every valid data row.
-  const query=new URLSearchParams({tqx:'out:csv',sheet:source.name,range:source.range});
-  const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?${query}`,{
+async function fetchCsv(source:{gid:number}){
+  const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${source.gid}`,{
     cache:'no-store',
-    signal:AbortSignal.timeout(55_000),
+    signal:AbortSignal.timeout(90_000),
   });
   if(!response.ok)throw new Error(`Google Sheet export returned ${response.status}`);
   const text=await response.text();
@@ -33,18 +24,8 @@ async function fetchCsv(source:{name:string;range:string}){
 }
 
 export async function loadGoogleSheetDashboard(){
-  if(cached&&Date.now()-cached.loadedAt<FIVE_MINUTES)return cached.data;
-  if(pending)return pending;
-  pending=(async()=>{
-    const [projects,rm,wa,rcs]=await Promise.all([
-      fetchCsv(SHEETS.projects),fetchCsv(SHEETS.rm),fetchCsv(SHEETS.wa),fetchCsv(SHEETS.rcs),
-    ]);
-    const data=buildDashboard(projects,rm,wa,rcs,SOURCE_SPREADSHEET_URL);
-    cached={data,loadedAt:Date.now()};
-    return data;
-  })();
-  try{return await pending;}catch(error){
-    if(cached)return cached.data;
-    throw error;
-  }finally{pending=null;}
+  const [projects,rm,wa,rcs]=await Promise.all([
+    fetchCsv(SHEETS.projects),fetchCsv(SHEETS.rm),fetchCsv(SHEETS.wa),fetchCsv(SHEETS.rcs),
+  ]);
+  return buildDashboard(projects,rm,wa,rcs,SOURCE_SPREADSHEET_URL);
 }

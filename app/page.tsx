@@ -26,8 +26,6 @@ import {
   Users,
   WalletCards,
 } from 'lucide-react';
-import { consoleData } from '@/lib/console-data';
-import { clientMonthly } from '@/lib/client-monthly';
 const compact = (v: number) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -51,18 +49,13 @@ const monthLabel = (m: string) =>
     year: 'numeric',
   });
 export default function Home() {
-  const [data, setData] = useState<any>({
-      consoleData,
-      clientMonthly,
-      updatedAt: null,
-      updatedBy: 'Initial verified snapshot',
-    }),
+  const [data, setData] = useState<any | null>(null),
     allMonths = useMemo(
       () =>
         Array.from(
-          new Set<string>(data.clientMonthly.map((r: any) => r.month)),
+          new Set<string>((data?.clientMonthly ?? []).map((r: any) => r.month)),
         ).sort(),
-      [data.clientMonthly],
+      [data],
     );
   const [view, setView] = useState<View>('overview'),
     [isLive, setIsLive] = useState(false),
@@ -72,13 +65,11 @@ export default function Home() {
     [industry, setIndustry] = useState('All industries'),
     [status, setStatus] = useState('All statuses'),
     [botType, setBotType] = useState('All bot types'),
-    [selectedMonths, setSelectedMonths] = useState<string[]>(() =>
-      Array.from(new Set(clientMonthly.map((r) => r.month))).sort(),
-    ),
+    [selectedMonths, setSelectedMonths] = useState<string[]>([]),
     [projectSort, setProjectSort] = useState<ProjectSort>('default'),
     [monthOpen, setMonthOpen] = useState(false);
-  const liveData = data.consoleData,
-    liveMonthly = data.clientMonthly;
+  const liveData = data?.consoleData,
+    liveMonthly = data?.clientMonthly ?? [];
   const monthPickerRef = useRef<HTMLDivElement>(null);
   useEffect(() => setMonthOpen(false), [view]);
   useEffect(() => {
@@ -86,18 +77,18 @@ export default function Home() {
     let retryTimer:ReturnType<typeof setTimeout>|undefined;
     const apply = (x:any) => {
       if (!active || !x) return;
-      if(x.sourceError){setSyncDelayed(true);clearTimeout(retryTimer);retryTimer=setTimeout(()=>refresh(true),60_000);return;}
+      if(x.sourceError){setSyncDelayed(true);clearTimeout(retryTimer);retryTimer=setTimeout(refresh,60_000);return;}
       setData(x);setIsLive(true);setSyncDelayed(false);
       const months=Array.from(new Set<string>(x.clientMonthly.map((r:any)=>r.month))).sort();
       setSelectedMonths((current:string[])=>{const valid=current.filter((m)=>months.includes(m));return valid.length?valid:months;});
     };
-    const refresh = (force=false) =>
-      fetch(`/api/dashboard${force?'?force=1':''}`, { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : null))
+    const refresh = () =>
+      fetch('/api/dashboard', { cache: 'no-store' })
+        .then((r) => r.json().catch(() => null))
         .then(apply)
-        .catch(() => {});
-    refresh(false);
-    const timer = setInterval(()=>refresh(true), 300000);
+        .catch(() => {if(active)setSyncDelayed(true)});
+    refresh();
+    const timer = setInterval(refresh, 300000);
     return () => {
       active = false;
       clearInterval(timer);
@@ -120,6 +111,9 @@ export default function Home() {
       document.removeEventListener('keydown', escape);
     };
   }, [monthOpen]);
+  if (!liveData) {
+    return <main className="initial-live-state"><div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Google Sheet is unavailable':'Loading live Google Sheet data'}</b><small>{syncDelayed?'The console will retry automatically. No saved dashboard snapshot is being shown.':'Reading the current Projects, R&M, WhatsApp and RCS data…'}</small></div></div></main>;
+  }
   const projects = liveData.projects,
     clients = liveData.clients;
   const industries = [
