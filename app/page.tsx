@@ -53,6 +53,18 @@ const full = (v: number) =>
     currency: 'INR',
     maximumFractionDigits: 0,
   }).format(v);
+const downloadCsv = (filename: string, headers: string[], rows: Array<Array<string | number>>) => {
+  const esc = (value: string | number) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+  const csv = [headers, ...rows].map((row) => row.map(esc).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+};
 const percent = (v: number, b: number) =>
   b ? `${((v / b) * 100).toFixed(1)}%` : '—';
 type View = 'overview' | 'clients' | 'projects' | 'forecast' | 'client360';
@@ -731,7 +743,7 @@ function ForecastView({ rows, monthly, actualRows, query }: { rows: any[]; month
       </Card>
       <div className="forecast-side-stack"><Card title="Projected by revenue stream" sub="Achieved plus future forecast."><div className="forecast-stream-summary">{streams.map(s=><div className={s.className} key={s.label}><b>{s.label}</b><span>{compact(s.achieved+s.future)} projected</span><small>{compact(s.achieved)} achieved</small></div>)}</div></Card><Card title="Projected vs achieved" sub="Progress against the combined forecast."><div className="forecast-progress"><div><b>{achievement.toFixed(1)}% achieved</b><span>{compact(achieved)} of {compact(projected)}</span></div><div><b>{compact(future)} remaining</b><span>Future forecast</span></div></div></Card></div>
     </div>
-    <div className="table-card forecast-table"><table><thead><tr><th>Month</th><th>Chatbot</th><th>WA consumables</th><th>RCS consumables</th><th>Projected</th><th>Achieved</th><th>Remaining</th></tr></thead><tbody>{forecastMonths.map((m:any)=><tr key={m.month}><td><b>{monthLabel(m.month)}</b></td><td>{compact(m.chatbotRevenue)}</td><td>{compact(m.waRevenue)}</td><td>{compact(m.rcsRevenue)}</td><td><b>{compact(m.totalRevenue)}</b></td><td>{compact(0)}</td><td><b>{compact(m.totalRevenue)}</b></td></tr>)}</tbody></table>{!forecastMonths.length&&<div className="empty">No run-rate forecast is available. Add a live chatbot R&M month or WA/RCS consumption history.</div>}</div>
+    <div className="table-card forecast-table"><div className="table-export-bar"><span>Forecast records in the current search view</span><button type="button" className="export-filtered" onClick={() => downloadCsv('cpaas-forecast-filtered.csv', ['Month','Chatbot revenue','WA consumables revenue','RCS consumables revenue','Projected revenue'], forecastMonths.map((m:any) => [m.month,m.chatbotRevenue,m.waRevenue,m.rcsRevenue,m.totalRevenue]))}>Export filtered CSV</button></div><table><thead><tr><th>Month</th><th>Chatbot</th><th>WA consumables</th><th>RCS consumables</th><th>Projected</th><th>Achieved</th><th>Remaining</th></tr></thead><tbody>{forecastMonths.map((m:any)=><tr key={m.month}><td><b>{monthLabel(m.month)}</b></td><td>{compact(m.chatbotRevenue)}</td><td>{compact(m.waRevenue)}</td><td>{compact(m.rcsRevenue)}</td><td><b>{compact(m.totalRevenue)}</b></td><td>{compact(0)}</td><td><b>{compact(m.totalRevenue)}</b></td></tr>)}</tbody></table>{!forecastMonths.length&&<div className="empty">No run-rate forecast is available. Add a live chatbot R&M month or WA/RCS consumption history.</div>}</div>
   </div>;
 }
 const clientKey = (value: string) =>
@@ -749,7 +761,7 @@ function Client360({
   monthly: any[];
   query: string;
 }) {
-  const [scope, setScope] = useState<'all' | 'wa' | 'rcs'>('all');
+  const [scope, setScope] = useState<'all' | 'wa' | 'rcs' | 'negative' | 'offset' | 'netrisk' | 'usageRisk'>('all');
   const [selected, setSelected] = useState<string | null>(null);
   const rows = useMemo(() => {
     const consumables = new Map<string, any>();
@@ -759,6 +771,8 @@ function Client360({
         client: r.client,
         chatbotRevenue: 0,
         chatbotCost: 0,
+        chatbotRentalRevenue: 0,
+        chatbotRentalCost: 0,
         waRevenue: 0,
         waCost: 0,
         rcsRevenue: 0,
@@ -767,6 +781,8 @@ function Client360({
       };
       item.chatbotRevenue += Number(r.chatbotRevenue || 0);
       item.chatbotCost += Number(r.chatbotCost || 0);
+      item.chatbotRentalRevenue += Number(r.chatbotRentalRevenue || 0);
+      item.chatbotRentalCost += Number(r.chatbotRentalCost || 0);
       item.waRevenue += Number(r.waRevenue || 0);
       item.waCost += Number(r.waCost || 0);
       item.rcsRevenue += Number(r.rcsRevenue || 0);
@@ -787,11 +803,18 @@ function Client360({
     });
     return [...chatbotClients.entries()]
       .map(([key, chatbot]) => {
-        const usage = consumables.get(key) || {client:chatbot.client,chatbotRevenue:0,chatbotCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0,months:new Set<string>()};
+        const usage = consumables.get(key) || {client:chatbot.client,chatbotRevenue:0,chatbotCost:0,chatbotRentalRevenue:0,chatbotRentalCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0,months:new Set<string>()};
         const hasWA = usage.waRevenue !== 0 || usage.waCost !== 0;
         const hasRCS = usage.rcsRevenue !== 0 || usage.rcsCost !== 0;
         const chatbotMargin=usage.chatbotRevenue-usage.chatbotCost;
-        return { ...chatbot, ...usage, key, hasWA, hasRCS, chatbotMargin };
+        const waMargin=usage.waRevenue-usage.waCost;
+        const rcsMargin=usage.rcsRevenue-usage.rcsCost;
+        const usageMargin=waMargin+rcsMargin;
+        const netRevenue=usage.chatbotRevenue+usage.waRevenue+usage.rcsRevenue;
+        const netCost=usage.chatbotCost+usage.waCost+usage.rcsCost;
+        const netMargin=netRevenue-netCost;
+        const mrGap=Math.max(0,usage.chatbotRentalCost-usage.chatbotRentalRevenue);
+        return { ...chatbot, ...usage, key, hasWA, hasRCS, chatbotMargin, waMargin, rcsMargin, usageMargin, netRevenue, netCost, netMargin, mrGap, recoveredByUsage:chatbotMargin<0&&usageMargin>0&&netMargin>=0, usageRisk:waMargin<0||rcsMargin<0 };
       })
       .filter(Boolean)
       .sort((a: any, b: any) =>
@@ -802,7 +825,11 @@ function Client360({
     (r) =>
       (scope === 'all' ||
         (scope === 'wa' && r.hasWA) ||
-        (scope === 'rcs' && r.hasRCS)) &&
+        (scope === 'rcs' && r.hasRCS) ||
+        (scope === 'negative' && r.chatbotMargin < 0) ||
+        (scope === 'offset' && r.recoveredByUsage) ||
+        (scope === 'netrisk' && r.netMargin < 0) ||
+        (scope === 'usageRisk' && r.usageRisk)) &&
       r.client.toLowerCase().includes(query.toLowerCase()),
   );
   const current = rows.find((r) => r.key === selected) || null;
@@ -827,24 +854,33 @@ function Client360({
             <h2>Chatbot clients using consumables</h2>
             <p>Clients matched across chatbot projects, WhatsApp and RCS billing.</p>
           </div>
-          <span>{visible.length} chatbot clients</span>
+          <span>{visible.length} clients in view</span>
         </div>
         <div className="client360-kpis">
-          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>Chatbot</span></button>
+          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>All chatbot clients</span></button>
           <button className={scope === 'wa' ? 'active' : ''} onClick={() => setScope('wa')}><b>{rows.filter(r => r.hasWA).length}</b><span>WA</span></button>
           <button className={scope === 'rcs' ? 'active' : ''} onClick={() => setScope('rcs')}><b>{rows.filter(r => r.hasRCS).length}</b><span>RCS</span></button>
+          <button className={scope === 'negative' ? 'active' : ''} onClick={() => setScope('negative')}><b>{rows.filter(r => r.chatbotMargin < 0).length}</b><span>Chatbot loss</span></button>
+          <button className={scope === 'offset' ? 'active' : ''} onClick={() => setScope('offset')}><b>{rows.filter(r => r.recoveredByUsage).length}</b><span>WA/RCS offsets loss</span></button>
+          <button className={scope === 'netrisk' ? 'active' : ''} onClick={() => setScope('netrisk')}><b>{rows.filter(r => r.netMargin < 0).length}</b><span>Net loss after WA/RCS</span></button>
+          <button className={scope === 'usageRisk' ? 'active' : ''} onClick={() => setScope('usageRisk')}><b>{rows.filter(r => r.usageRisk).length}</b><span>WA/RCS loss</span></button>
         </div>
+      </div>
+      <div className="client360-record-tools">
+        <span><b>Matched-client filter</b><small>Use the search above, then export only the rows currently in view.</small></span>
+        <button type="button" className="export-filtered" onClick={() => downloadCsv('cpaas-client-360-filtered.csv', ['Client','Chatbots','Channels','Chatbot revenue','Chatbot cost','Chatbot margin','WA revenue','WA cost','WA margin','RCS revenue','RCS cost','RCS margin','Vendor MR revenue','Vendor MR cost','MR recovery gap','Net revenue','Net cost','Net margin','Margin assessment'], visible.map((r:any) => [r.client,r.projects.length,[r.hasWA?'WA':'',r.hasRCS?'RCS':''].filter(Boolean).join(' + '),r.chatbotRevenue,r.chatbotCost,r.chatbotMargin,r.waRevenue,r.waCost,r.waMargin,r.rcsRevenue,r.rcsCost,r.rcsMargin,r.chatbotRentalRevenue,r.chatbotRentalCost,r.mrGap,r.netRevenue,r.netCost,r.netMargin,r.netMargin<0?'Loss remains after WA/RCS':r.recoveredByUsage?'WA/RCS currently offsets chatbot loss':r.usageRisk?'WA/RCS stream has negative margin':'Positive']))}>Export filtered CSV</button>
       </div>
       <div className="client360-grid">
         <div className="table-card client360-list">
-          <table><thead><tr><th>Client</th><th>Chatbots</th><th>Channels</th><th>Chatbot</th><th>WA</th><th>RCS</th><th>Chatbot margin</th></tr></thead>
-            <tbody>{visible.map((r) => <tr key={r.key} className={selected === r.key ? 'selected' : ''} onClick={() => setSelected(r.key)}><td><b>{r.client}</b>{r.chatbotMargin < 0 && <em className="negative-chip">Negative margin</em>}</td><td>{r.projects.length}</td><td><span className="channel-pills">{r.hasWA && <em>WA</em>}{r.hasRCS && <em>RCS</em>}</span></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.waRevenue)}</td><td>{compact(r.rcsRevenue)}</td><td className={r.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(r.chatbotMargin)}</td></tr>)}</tbody>
+          <table><thead><tr><th>Client</th><th>Chatbots</th><th>Channels</th><th>Chatbot</th><th>WA</th><th>RCS</th><th>Chatbot margin</th><th>Net margin</th></tr></thead>
+            <tbody>{visible.map((r) => <tr key={r.key} className={selected === r.key ? 'selected' : ''} onClick={() => setSelected(r.key)}><td><b>{r.client}</b>{r.chatbotMargin < 0 && <em className="negative-chip">Chatbot loss</em>}{r.recoveredByUsage && <em className="offset-chip">Offset by WA/RCS</em>}</td><td>{r.projects.length}</td><td><span className="channel-pills">{r.hasWA && <em>WA</em>}{r.hasRCS && <em>RCS</em>}</span></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.waRevenue)}</td><td>{compact(r.rcsRevenue)}</td><td className={r.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(r.chatbotMargin)}</td><td className={r.netMargin < 0 ? 'bad' : 'good'}>{compact(r.netMargin)}</td></tr>)}</tbody>
           </table>
         </div>
         <aside className="client360-detail">
           {!current ? <div className="client360-empty"><Users /><b>Select a client</b><span>Click a row to see total month-wise revenue and its chatbot portfolio.</span></div> : <>
-            <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}{current.chatbotMargin < 0 && <em className="negative-chip">Negative margin</em>}</b></span><button onClick={() => setSelected(null)}>×</button></div>
-            <div className="client360-finance"><div><small>Chatbot</small><b>{compact(current.chatbotRevenue)}</b></div><div><small>WA</small><b>{compact(current.waRevenue)}</b></div><div><small>RCS</small><b>{compact(current.rcsRevenue)}</b></div><div><small>Chatbot margin</small><b className={current.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(current.chatbotMargin)}</b></div></div>
+            <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}{current.chatbotMargin < 0 && <em className="negative-chip">Chatbot loss</em>}</b></span><button onClick={() => setSelected(null)}>×</button></div>
+            <div className="client360-finance"><div><small>Chatbot revenue</small><b>{compact(current.chatbotRevenue)}</b></div><div><small>Chatbot margin</small><b className={current.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(current.chatbotMargin)}</b></div><div><small>WA margin</small><b className={current.waMargin < 0 ? 'bad' : 'good'}>{compact(current.waMargin)}</b></div><div><small>RCS margin</small><b className={current.rcsMargin < 0 ? 'bad' : 'good'}>{compact(current.rcsMargin)}</b></div><div><small>Vendor MR revenue</small><b>{compact(current.chatbotRentalRevenue)}</b></div><div><small>Vendor MR cost</small><b>{compact(current.chatbotRentalCost)}</b></div><div><small>MR recovery gap</small><b className={current.mrGap ? 'bad' : 'good'}>{compact(current.mrGap)}</b></div><div><small>Net margin</small><b className={current.netMargin < 0 ? 'bad' : 'good'}>{compact(current.netMargin)}</b></div></div>
+            <div className="client360-recovery"><b>Margin recovery check</b><div><span>WA + RCS margin contribution</span><strong className={current.usageMargin < 0 ? 'bad' : 'good'}>{compact(current.usageMargin)}</strong></div><div className={current.netMargin < 0 ? 'attention' : ''}><span>Overall result after chatbot + consumables</span><strong className={current.netMargin < 0 ? 'bad' : 'good'}>{compact(current.netMargin)}</strong></div><p>{current.netMargin < 0 ? 'The client remains loss-making after WA and RCS. Check vendor MR pricing and cost first.' : current.recoveredByUsage ? 'WA/RCS currently offsets the chatbot loss. Verify this positive usage margin is recurring before treating the account as recovered.' : current.usageRisk ? 'A consumable stream is loss-making. Check channel price and supplier cost before relying on it to recover chatbot MR.' : current.mrGap > 0 ? 'Vendor MR/rental cost is higher than MR revenue. Check contract charging, vendor rate and billing start date.' : 'No negative-margin recovery signal is present in the source values for this client.'}</p></div>
             <div className="client360-projects"><h3>Chatbots</h3>{current.projects.map((p:any) => <div key={p.project}><b>{p.project}</b><span>{p.type} · {p.status}</span></div>)}</div>
             <h3>Monthly commercial trend</h3>
             <div className="client360-history">{history.map((r:any,index:number) => {
@@ -1104,7 +1140,7 @@ function ClientTable({
             selected month{months.length === 1 ? '' : 's'}.
           </p>
         </div>
-        <span>{visible.length} clients</span>
+        <div className="heading-actions"><span>{visible.length} clients</span><button type="button" className="export-filtered" onClick={() => downloadCsv('cpaas-client-profitability-filtered.csv', ['Client','Projects','Live projects','Project revenue','Project cost','WA revenue','WA cost','RCS revenue','RCS cost','Total revenue','Total cost','Total margin','Margin %'], visible.map((c:any) => [c.client,c.projects,c.live,c.projectRevenue,c.projectCost,c.waRevenue,c.waCost,c.rcsRevenue,c.rcsCost,c.totalRevenue,c.totalCost,c.margin,percent(c.margin,c.totalRevenue)]))}>Export filtered CSV</button></div>
       </div>
       <div className="client-segments">
         <button
@@ -1301,7 +1337,7 @@ function ProjectTable({
             {months.length} selected month{months.length === 1 ? '' : 's'}.
           </p>
         </div>
-        <span>{rows.length} projects</span>
+        <div className="heading-actions"><span>{rows.length} projects</span><button type="button" className="export-filtered" onClick={() => downloadCsv('cpaas-project-portfolio-filtered.csv', ['Project','Client','Industry','Bot type','Owner','Vendor','Status','Revenue','Cost','Margin','Margin %'], rows.map((p:any) => [p.project,p.client,p.industry,p.type,p.owner,p.vendor,p.status,p.revenue,p.cost,p.margin,percent(p.margin,p.revenue)]))}>Export filtered CSV</button></div>
       </div>
       <div className="portfolio-kpis">
         <button
