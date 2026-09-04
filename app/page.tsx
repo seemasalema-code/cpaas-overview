@@ -74,6 +74,10 @@ const monthLabel = (m: string) =>
     month: 'short',
     year: 'numeric',
   });
+const financialYearLabel = (date = new Date()) => {
+  const start = date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
+  return `FY ${start}-${String(start + 1).slice(-2)}`;
+};
 export default function Home() {
   const [data, setData] = useState<any | null>(null),
     allMonths = useMemo(
@@ -490,7 +494,7 @@ export default function Home() {
               )}
             </div>
           )}
-          <span>{view === 'forecast' ? 'Forecast · live chatbot run-rate + WA + RCS consumption' : 'Chatbot R&M + WA + RCS · from Apr 2026'}</span>
+          <span>{view === 'forecast' ? `${liveData?.financialYear || financialYearLabel()} forecast · remaining months to March` : `Chatbot R&M + WA + RCS · ${liveData?.financialYear || financialYearLabel()} only`}</span>
         </div>
         {view === 'overview' ? (
           <div className="content">
@@ -702,6 +706,8 @@ export default function Home() {
             monthly={liveData.forecastMonthly || []}
             actualRows={liveMonthly || []}
             query={query}
+            financialYear={liveData?.financialYear || financialYearLabel()}
+            reportingEnd={liveData?.reportingEnd}
           />
         ) : (
           <Client360
@@ -715,7 +721,7 @@ export default function Home() {
   );
 }
 
-function ForecastView({ rows, monthly, actualRows, query }: { rows: any[]; monthly: any[]; actualRows: any[]; query: string }) {
+function ForecastView({ rows, monthly, actualRows, query, financialYear, reportingEnd }: { rows: any[]; monthly: any[]; actualRows: any[]; query: string; financialYear: string; reportingEnd?: string }) {
   const visible = rows.filter((r) => r.client.toLowerCase().includes(query.toLowerCase()));
   const actual = actualRows.filter((r) => r.client.toLowerCase().includes(query.toLowerCase()));
   const totalRevenue = (r:any) => Number(r.chatbotRevenue||0)+Number(r.waRevenue||0)+Number(r.rcsRevenue||0);
@@ -732,13 +738,13 @@ function ForecastView({ rows, monthly, actualRows, query }: { rows: any[]; month
   const forecastMonths = query ? Array.from(new Set(visible.map(r=>r.month))).sort().map(month=>visible.filter(r=>r.month===month).reduce((a,r)=>({month,chatbotRevenue:a.chatbotRevenue+Number(r.chatbotRevenue||0),waRevenue:a.waRevenue+Number(r.waRevenue||0),rcsRevenue:a.rcsRevenue+Number(r.rcsRevenue||0),totalRevenue:a.totalRevenue+totalRevenue(r)}),{month,chatbotRevenue:0,waRevenue:0,rcsRevenue:0,totalRevenue:0})) : monthly;
   return <div className="content forecast-view">
     <div className="kpis forecast-kpis">
-      <Kpi label="Projected revenue" value={compact(projected)} note="Achieved + future forecast" icon={<TrendingUp />} />
-      <Kpi label="Achieved" value={compact(achieved)} note={achievement.toFixed(1) + '% of projected'} icon={<WalletCards />} />
-      <Kpi label="Remaining to achieve" value={compact(future)} note="Future months" icon={<BarChart3 />} />
+      <Kpi label="Projected revenue" value={compact(projected)} note={`${financialYear} actuals + forecast`} icon={<TrendingUp />} />
+      <Kpi label="Achieved" value={compact(achieved)} note={achievement.toFixed(1) + '% of current-FY forecast'} icon={<WalletCards />} />
+      <Kpi label="Remaining to achieve" value={compact(future)} note={reportingEnd ? `Forecast through ${monthLabel(reportingEnd)}` : 'Future months'} icon={<BarChart3 />} />
       <Kpi label="Achievement" value={achievement.toFixed(1) + '%'} note={`${compact(achieved)} of ${compact(projected)}`} icon={<Users />} />
     </div>
     <div className="dashboard-grid forecast-stream-grid">
-      <Card title="Monthly forecast by revenue stream" sub="Live chatbot run-rate plus the trailing 3-month WA and RCS consumption average.">
+      <Card title={`${financialYear} monthly forecast`} sub="Live chatbot run-rate plus the trailing 3-month WA and RCS consumption average, only through this financial year's March close.">
         <div className="forecast-months">{forecastMonths.map((m:any) => <div className="forecast-month-card" key={m.month}><div className="forecast-month-head"><span>{monthLabel(m.month)}</span><b>{compact(m.totalRevenue)}</b></div><div className="forecast-stream-pills"><em className="chatbot">Chatbot {compact(m.chatbotRevenue)}</em><em className="wa">WA {compact(m.waRevenue)}</em><em className="rcs">RCS {compact(m.rcsRevenue)}</em></div><small>Projected revenue</small></div>)}</div>
       </Card>
       <div className="forecast-side-stack"><Card title="Projected by revenue stream" sub="Achieved plus future forecast."><div className="forecast-stream-summary">{streams.map(s=><div className={s.className} key={s.label}><b>{s.label}</b><span>{compact(s.achieved+s.future)} projected</span><small>{compact(s.achieved)} achieved</small></div>)}</div></Card><Card title="Projected vs achieved" sub="Progress against the combined forecast."><div className="forecast-progress"><div><b>{achievement.toFixed(1)}% achieved</b><span>{compact(achieved)} of {compact(projected)}</span></div><div><b>{compact(future)} remaining</b><span>Future forecast</span></div></div></Card></div>
@@ -857,14 +863,15 @@ function Client360({
           <span>{visible.length} clients in view</span>
         </div>
         <div className="client360-kpis">
-          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>All chatbot clients</span></button>
-          <button className={scope === 'wa' ? 'active' : ''} onClick={() => setScope('wa')}><b>{rows.filter(r => r.hasWA).length}</b><span>WA</span></button>
-          <button className={scope === 'rcs' ? 'active' : ''} onClick={() => setScope('rcs')}><b>{rows.filter(r => r.hasRCS).length}</b><span>RCS</span></button>
-          <button className={scope === 'negative' ? 'active' : ''} onClick={() => setScope('negative')}><b>{rows.filter(r => r.chatbotMargin < 0).length}</b><span>Chatbot loss</span></button>
-          <button className={scope === 'offset' ? 'active' : ''} onClick={() => setScope('offset')}><b>{rows.filter(r => r.recoveredByUsage).length}</b><span>WA/RCS offsets loss</span></button>
-          <button className={scope === 'netrisk' ? 'active' : ''} onClick={() => setScope('netrisk')}><b>{rows.filter(r => r.netMargin < 0).length}</b><span>Net loss after WA/RCS</span></button>
-          <button className={scope === 'usageRisk' ? 'active' : ''} onClick={() => setScope('usageRisk')}><b>{rows.filter(r => r.usageRisk).length}</b><span>WA/RCS loss</span></button>
+          <button className={scope === 'all' ? 'active' : ''} onClick={() => setScope('all')}><b>{rows.length}</b><span>All chatbot clients</span><small>Accounts with at least one chatbot project.</small></button>
+          <button className={scope === 'wa' ? 'active' : ''} onClick={() => setScope('wa')}><b>{rows.filter(r => r.hasWA).length}</b><span>WA</span><small>Clients with WhatsApp billing in this FY.</small></button>
+          <button className={scope === 'rcs' ? 'active' : ''} onClick={() => setScope('rcs')}><b>{rows.filter(r => r.hasRCS).length}</b><span>RCS</span><small>Clients with RCS billing in this FY.</small></button>
+          <button className={scope === 'negative' ? 'active' : ''} onClick={() => setScope('negative')}><b>{rows.filter(r => r.chatbotMargin < 0).length}</b><span>Chatbot loss</span><small>Chatbot R&amp;M cost is above chatbot R&amp;M revenue.</small></button>
+          <button className={scope === 'offset' ? 'active' : ''} onClick={() => setScope('offset')}><b>{rows.filter(r => r.recoveredByUsage).length}</b><span>WA/RCS offsets loss</span><small>Consumable margin makes a chatbot-loss client net-positive.</small></button>
+          <button className={scope === 'netrisk' ? 'active' : ''} onClick={() => setScope('netrisk')}><b>{rows.filter(r => r.netMargin < 0).length}</b><span>Net loss after WA/RCS</span><small>The combined chatbot, WA and RCS result remains negative.</small></button>
+          <button className={scope === 'usageRisk' ? 'active' : ''} onClick={() => setScope('usageRisk')}><b>{rows.filter(r => r.usageRisk).length}</b><span>WA/RCS loss</span><small>At least one consumable stream costs more than it earns.</small></button>
         </div>
+        <div className="client360-reading-note"><b>How to read these chips</b><span>Each client combines chatbot R&amp;M, WhatsApp and RCS for the selected financial year. A chatbot loss can be offset by profitable consumables; the net-loss chip shows the clients still requiring action.</span></div>
       </div>
       <div className="client360-record-tools">
         <span><b>Matched-client filter</b><small>Use the search above, then export only the rows currently in view.</small></span>

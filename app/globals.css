@@ -1399,3 +1399,102 @@ td small {
     min-width: 200px;
   }
 }
+
+/* CPaaS editorial type system and Client 360 clarity. */
+:root { --cpaas-serif: Georgia, 'Times New Roman', serif; }
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--cpaas-serif);
+}
+h1,
+h2,
+h3,
+.heading h2,
+.workspace h1,
+.brand b {
+  font-family: var(--cpaas-serif);
+  font-weight: 700;
+}
+.workspace h1,
+.heading h2 {
+  font-size: clamp(22px, 1.8vw, 26px);
+  line-height: 1.15;
+}
+.table-card td,
+.client360-list td,
+.client360-detail,
+.client360-record-tools,
+.client360-kpis button {
+  font-family: var(--cpaas-serif);
+  font-weight: 400;
+}
+.client360-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+  margin: 20px 0 14px;
+}
+.client360-kpis button {
+  min-height: 136px;
+  padding: 17px 18px;
+  border-radius: 16px;
+  box-shadow: 0 5px 14px rgba(39, 65, 53, 0.04);
+}
+.client360-kpis b {
+  font-size: clamp(22px, 1.8vw, 26px);
+  line-height: 1;
+}
+.client360-kpis span {
+  margin-top: 9px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+.client360-kpis small {
+  display: block;
+  margin-top: 7px;
+  color: #627064;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.client360-reading-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 13px 15px;
+  border: 1px solid #d7e6db;
+  border-radius: 14px;
+  background: #f4faf5;
+  color: #354e3e;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.client360-reading-note b {
+  flex: 0 0 auto;
+  font-weight: 700;
+}
+.client360-record-tools {
+  margin-top: 0;
+}
+.client360-list th {
+  font-size: 11px;
+}
+.client360-list td {
+  font-size: clamp(16px, 1.05vw, 19px);
+  line-height: 1.35;
+}
+.client360-list td b {
+  font-weight: 700;
+}
+@media (max-width: 1100px) {
+  .client360-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 650px) {
+  .client360-kpis { grid-template-columns: 1fr; gap: 12px; }
+  .client360-kpis button { min-height: 118px; }
+  .client360-reading-note { flex-direction: column; }
+  .client360-list td { font-size: 16px; }
+}

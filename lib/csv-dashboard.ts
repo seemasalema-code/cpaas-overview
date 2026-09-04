@@ -1,4 +1,3 @@
-const START='2026-04',HORIZON=6;
 const clean=(v:unknown)=>String(v??'').trim();
 const num=(v:unknown)=>Number(clean(v).replace(/[₹,$%\s]/g,'').replace(/\((.*)\)/,'-$1'))||0;
 const hk=(v:unknown)=>clean(v).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
@@ -24,6 +23,10 @@ function monthValue(value:string){
  const serial=Number(v);if(serial>30000){const x=new Date(Date.UTC(1899,11,30)+serial*86400000);return `${x.getUTCFullYear()}-${String(x.getUTCMonth()+1).padStart(2,'0')}`}return '';
 }
 function plusMonth(month:string,n:number){const [y,m]=month.split('-').map(Number),d=new Date(y,m-1+n,1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+function financialYear(date=new Date()){
+ const startYear=date.getMonth()>=3?date.getFullYear():date.getFullYear()-1;
+ return {start:`${startYear}-04`,end:`${startYear+1}-03`,label:`FY ${startYear}-${String(startYear+1).slice(-2)}`};
+}
 type Monthly={client:string;month:string;chatbotRevenue:number;chatbotCost:number;chatbotRentalRevenue:number;chatbotRentalCost:number;waRevenue:number;waCost:number;rcsRevenue:number;rcsCost:number;periodType:'Actual'|'Forecast'};
 const empty=(client:string,month:string,periodType:'Actual'|'Forecast'='Actual'):Monthly=>({client,month,chatbotRevenue:0,chatbotCost:0,chatbotRentalRevenue:0,chatbotRentalCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0,periodType});
 
@@ -36,7 +39,8 @@ export function buildDashboard(projectCsv:string,rmCsv:string,waCsv:string,rcsCs
  const clientLabels=new Map<string,string>();
  const resolveClient=(value:unknown,fallback='')=>{const label=clean(value)||fallback,key=clientKey(label);if(!key)return label;const known=clientLabels.get(key);if(known)return known;clientLabels.set(key,label);return label};
  projects.forEach(project=>{project.client=resolveClient(project.client,project.project)});
- const now=new Date(),current=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`,future=Array.from({length:HORIZON},(_,i)=>plusMonth(current,i+1)),last=future.at(-1)!;
+ const now=new Date(),current=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`,fy=financialYear(now),future:string[]=[];
+ for(let month=plusMonth(current,1);month<=fy.end;month=plusMonth(month,1))future.push(month);
  const projectByBot=new Map<string,any[]>();projects.forEach(x=>{const key=rk(x.project),list=projectByBot.get(key)||[];list.push(x);projectByBot.set(key,list)});
  // R&M has many repeated monthly records for the same bot. Memoising the lookup avoids
  // re-running a full fuzzy project scan for every one of those records.
@@ -45,15 +49,15 @@ export function buildDashboard(projectCsv:string,rmCsv:string,waCsv:string,rcsCs
  const actual=new Map<string,Monthly>(),forecast=new Map<string,Monthly>(),projectTotals=new Map<string,{revenue:number;cost:number}>(),latest=new Map<string,{client:string;month:string;revenue:number;cost:number}>(),explicit=new Set<string>(),liveKeys=new Set(projects.filter(x=>hk(x.status)==='live').map(x=>rk(x.project)));
  const ri=rm.findIndex(r=>r.some(v=>hk(v)==='chatbot')&&(r.some(v=>hk(v)==='month')||(r.some(v=>hk(v)==='client')&&r.some(v=>hk(v)==='vendor'))));
  if(ri>=0){const h=rm[ri],cc=col(h,['Client','Client Name','Client Legal Name'],0),cb=col(h,['Chatbot','Project','Project Name'],1),cm=col(h,['Month','Billing Month','Revenue Month'],3),cr=col(h,['Total Netcore Revenue','Netcore Total Revenue','Total Revenue Netcore','Total Revenue','Monthly Revenue','Revenue'],34),co=col(h,['Total Vendor Cost','Vendor Total Cost','Total Cost Vendor','Total Cost','Vendor Cost','Cost'],19),crRental=col(h,['Netcore Monthly Rental'],21),coRental=col(h,['Vendor Monthly Rental'],6);if([cb,cm,cr,co].some(i=>i<0))throw new Error('Chatbot R&M is missing a required financial column.');
-  rm.slice(ri+1).forEach(r=>{const bot=clean(r[cb]),matched=resolveProject(bot),client=resolveClient((cc>=0?clean(r[cc]):'')||matched?.client||'',matched?.project||bot),month=monthValue(r[cm]);if(!client||!bot||!month||month<START)return;const revenue=num(r[cr]),cost=num(r[co]),rentalRevenue=num(r[crRental]),rentalCost=num(r[coRental]);if(!revenue&&!cost)return;const bk=rk(matched?.project||bot);
+  rm.slice(ri+1).forEach(r=>{const bot=clean(r[cb]),matched=resolveProject(bot),client=resolveClient((cc>=0?clean(r[cc]):'')||matched?.client||'',matched?.project||bot),month=monthValue(r[cm]);if(!client||!bot||!month||month<fy.start)return;const revenue=num(r[cr]),cost=num(r[co]),rentalRevenue=num(r[crRental]),rentalCost=num(r[coRental]);if(!revenue&&!cost)return;const bk=rk(matched?.project||bot);
    if(month<=current){const key=client+'\u0000'+month,x=actual.get(key)||empty(client,month);x.chatbotRevenue+=revenue;x.chatbotCost+=cost;x.chatbotRentalRevenue+=rentalRevenue;x.chatbotRentalCost+=rentalCost;actual.set(key,x);const t=projectTotals.get(bk)||{revenue:0,cost:0};t.revenue+=revenue;t.cost+=cost;projectTotals.set(bk,t);const old=latest.get(bk);if(!old||month>old.month)latest.set(bk,{client,month,revenue,cost});}
-   else if(month<=last&&liveKeys.has(bk)){const key=client+'\u0000'+month,x=forecast.get(key)||empty(client,month,'Forecast');x.chatbotRevenue+=revenue;x.chatbotCost+=cost;x.chatbotRentalRevenue+=rentalRevenue;x.chatbotRentalCost+=rentalCost;forecast.set(key,x);explicit.add(bk+'\u0000'+month);}
+   else if(month<=fy.end&&liveKeys.has(bk)){const key=client+'\u0000'+month,x=forecast.get(key)||empty(client,month,'Forecast');x.chatbotRevenue+=revenue;x.chatbotCost+=cost;x.chatbotRentalRevenue+=rentalRevenue;x.chatbotRentalCost+=rentalCost;forecast.set(key,x);explicit.add(bk+'\u0000'+month);}
   });
  }
  projects.forEach(p=>{const key=rk(p.project);let f=projectTotals.get(key);if(!f){const matches=[...projectTotals.entries()].filter(([candidate])=>key.length>5&&candidate.length>5&&(candidate.includes(key)||key.includes(candidate)));if(matches.length===1)f=matches[0][1]}if(f){p.revenue=f.revenue;p.cost=f.cost;p.margin=f.revenue-f.cost}});
  projects.filter(p=>hk(p.status)==='live').forEach(p=>{const bk=rk(p.project),run=latest.get(bk);if(!run)return;future.forEach(month=>{if(explicit.has(bk+'\u0000'+month))return;const client=p.client||run.client,key=client+'\u0000'+month,x=forecast.get(key)||empty(client,month,'Forecast');x.chatbotRevenue+=run.revenue;x.chatbotCost+=run.cost;forecast.set(key,x)})});
 
- const addUsage=(rows:string[][],kind:'wa'|'rcs')=>{const i=rows.findIndex(r=>r.some(v=>['client','client name','client legal name'].includes(hk(v)))&&r.some(v=>hk(v)==='month'));if(i<0)return;const h=rows[i],cc=col(h,['Client','Client Name','Client Legal Name']),cm=col(h,['Month','Billing Month','Revenue Month']),cr=col(h,['Revenue','Total Revenue','Monthly Revenue']),co=col(h,['Cost','Total Cost','Monthly Cost']);if([cc,cm,cr,co].some(x=>x<0))return;rows.slice(i+1).forEach(r=>{const client=resolveClient(r[cc]),month=monthValue(r[cm]);if(!client||!month||month<START||month>current)return;const key=client+'\u0000'+month,x=actual.get(key)||empty(client,month);if(kind==='wa'){x.waRevenue+=num(r[cr]);x.waCost+=num(r[co])}else{x.rcsRevenue+=num(r[cr]);x.rcsCost+=num(r[co])}actual.set(key,x)})};
+ const addUsage=(rows:string[][],kind:'wa'|'rcs')=>{const i=rows.findIndex(r=>r.some(v=>['client','client name','client legal name'].includes(hk(v)))&&r.some(v=>hk(v)==='month'));if(i<0)return;const h=rows[i],cc=col(h,['Client','Client Name','Client Legal Name']),cm=col(h,['Month','Billing Month','Revenue Month']),cr=col(h,['Revenue','Total Revenue','Monthly Revenue']),co=col(h,['Cost','Total Cost','Monthly Cost']);if([cc,cm,cr,co].some(x=>x<0))return;rows.slice(i+1).forEach(r=>{const client=resolveClient(r[cc]),month=monthValue(r[cm]);if(!client||!month||month<fy.start||month>current)return;const key=client+'\u0000'+month,x=actual.get(key)||empty(client,month);if(kind==='wa'){x.waRevenue+=num(r[cr]);x.waCost+=num(r[co])}else{x.rcsRevenue+=num(r[cr]);x.rcsCost+=num(r[co])}actual.set(key,x)})};
  addUsage(wa,'wa');addUsage(rcs,'rcs');
  const actualRows=[...actual.values()],waMonths=[...new Set(actualRows.filter(x=>x.waRevenue||x.waCost).map(x=>x.month))].sort().reverse().slice(0,3),rcsMonths=[...new Set(actualRows.filter(x=>x.rcsRevenue||x.rcsCost).map(x=>x.month))].sort().reverse().slice(0,3),waDivisor=Math.max(1,waMonths.length),rcsDivisor=Math.max(1,rcsMonths.length);
  const waMonthSet=new Set(waMonths),rcsMonthSet=new Set(rcsMonths),usageRates=new Map<string,{waRevenue:number;waCost:number;rcsRevenue:number;rcsCost:number}>();
@@ -69,5 +73,5 @@ export function buildDashboard(projectCsv:string,rmCsv:string,waCsv:string,rcsCs
  const forecastMap=new Map<string,{month:string;periodType:'Forecast';chatbotRevenue:number;chatbotCost:number;waRevenue:number;waCost:number;rcsRevenue:number;rcsCost:number;totalRevenue:number;totalCost:number}>();
  forecastClientMonthly.forEach(x=>{const value=forecastMap.get(x.month)||{month:x.month,periodType:'Forecast' as const,chatbotRevenue:0,chatbotCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0,totalRevenue:0,totalCost:0};value.chatbotRevenue+=x.chatbotRevenue;value.chatbotCost+=x.chatbotCost;value.waRevenue+=x.waRevenue;value.waCost+=x.waCost;value.rcsRevenue+=x.rcsRevenue;value.rcsCost+=x.rcsCost;value.totalRevenue+=x.chatbotRevenue+x.waRevenue+x.rcsRevenue;value.totalCost+=x.chatbotCost+x.waCost+x.rcsCost;forecastMap.set(x.month,value)});
  const forecastMonthly=future.map(month=>forecastMap.get(month)||{month,periodType:'Forecast' as const,chatbotRevenue:0,chatbotCost:0,waRevenue:0,waCost:0,rcsRevenue:0,rcsCost:0,totalRevenue:0,totalCost:0});
- return {consoleData:{asOf:new Date().toISOString().slice(0,10),reportingStart:START,sourceUrl,clients,projects,monthly,statuses,forecastMonthly},clientMonthly,forecastClientMonthly};
+ return {consoleData:{asOf:new Date().toISOString().slice(0,10),reportingStart:fy.start,reportingEnd:fy.end,financialYear:fy.label,sourceUrl,clients,projects,monthly,statuses,forecastMonthly},clientMonthly,forecastClientMonthly};
 }
