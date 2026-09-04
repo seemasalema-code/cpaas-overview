@@ -1501,23 +1501,6 @@ td b {
 .client360-list td b {
   font-weight: 700;
 }
-.financial-year-picker {
-  flex: 0 0 auto;
-  min-width: 146px;
-  gap: 5px;
-}
-.financial-year-picker span {
-  color: var(--muted);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.financial-year-picker select {
-  min-width: 89px;
-  font-weight: 700;
-}
 @media (max-width: 1100px) {
   .client360-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
