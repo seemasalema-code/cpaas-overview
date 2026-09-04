@@ -6,6 +6,10 @@ export const SOURCE_SPREADSHEET_URL=`https://docs.google.com/spreadsheets/d/${SO
 // Each request reads the whole source tab. This avoids filtered Google
 // visualization views and has no fixed upper row limit or stored snapshot.
 const SHEETS={projects:888299704,rm:559338930,wa:172604510,rcs:269889098} as const;
+// This is deliberately not a data cache: it only lets simultaneous page/API requests share the
+// same in-progress live read. Once it resolves or fails, the value is discarded, so the next
+// reload always re-reads the Google Sheet.
+let activeLiveRead:Promise<ReturnType<typeof buildDashboard>>|null=null;
 
 async function fetchCsv(gid:number){
   const response=await fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${gid}`,{
@@ -18,8 +22,13 @@ async function fetchCsv(gid:number){
 }
 
 export async function loadGoogleSheetDashboard(){
-  const [projects,rm,wa,rcs]=await Promise.all([
-    fetchCsv(SHEETS.projects),fetchCsv(SHEETS.rm),fetchCsv(SHEETS.wa),fetchCsv(SHEETS.rcs),
-  ]);
-  return buildDashboard(projects,rm,wa,rcs,SOURCE_SPREADSHEET_URL);
+  if(activeLiveRead)return activeLiveRead;
+  activeLiveRead=(async()=>{
+    const [projects,rm,wa,rcs]=await Promise.all([
+      fetchCsv(SHEETS.projects),fetchCsv(SHEETS.rm),fetchCsv(SHEETS.wa),fetchCsv(SHEETS.rcs),
+    ]);
+    return buildDashboard(projects,rm,wa,rcs,SOURCE_SPREADSHEET_URL);
+  })();
+  try{return await activeLiveRead;}
+  finally{activeLiveRead=null;}
 }

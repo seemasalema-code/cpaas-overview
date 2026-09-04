@@ -60,6 +60,7 @@ export default function Home() {
   const [view, setView] = useState<View>('overview'),
     [isLive, setIsLive] = useState(false),
     [syncDelayed, setSyncDelayed] = useState(false),
+    [retryNow, setRetryNow] = useState<null | (() => void)>(null),
     [riskClients, setRiskClients] = useState(false),
     [query, setQuery] = useState(''),
     [industry, setIndustry] = useState('All industries'),
@@ -78,8 +79,9 @@ export default function Home() {
     let retryTimer:ReturnType<typeof setTimeout>|undefined;
     const apply = (x:any) => {
       if (!active || !x) return;
-      if(x.sourceError){setSyncDelayed(true);clearTimeout(retryTimer);retryTimer=setTimeout(refresh,60_000);return;}
+      if(x.sourceError){setSyncDelayed(true);setRetryNow(()=>refresh);clearTimeout(retryTimer);retryTimer=setTimeout(refresh,60_000);return;}
       setData(x);setIsLive(true);setSyncDelayed(false);
+      setRetryNow(()=>refresh);
       const months=Array.from(new Set<string>(x.clientMonthly.map((r:any)=>r.month))).sort();
       setSelectedMonths((current:string[])=>{const valid=current.filter((m)=>months.includes(m));return valid.length?valid:months;});
     };
@@ -89,7 +91,7 @@ export default function Home() {
       return fetch('/api/dashboard', { cache: 'no-store' })
         .then((r) => r.json().catch(() => null))
         .then(apply)
-        .catch(() => {if(active)setSyncDelayed(true)})
+        .catch(() => {if(active){setSyncDelayed(true);setRetryNow(()=>refresh);}})
         .finally(()=>{refreshing=false;});
     };
     refresh();
@@ -124,7 +126,7 @@ export default function Home() {
     };
   }, [monthOpen]);
   if (!liveData) {
-    return <main className="initial-live-state"><div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Google Sheet is unavailable':'Loading live Google Sheet data'}</b><small>{syncDelayed?'The console will retry automatically. No saved dashboard snapshot is being shown.':'Reading the current Projects, R&M, WhatsApp and RCS data…'}</small></div></div></main>;
+    return <main className="initial-live-state"><div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Google Sheet is taking longer than usual':'Loading live Google Sheet data'}</b><small>{syncDelayed?'The console will retry automatically. No saved dashboard snapshot is being shown.':'Reading the current Projects, R&M, WhatsApp and RCS data…'}</small>{syncDelayed&&<button type="button" className="live-retry" onClick={()=>retryNow?.()}>Retry now</button>}</div></div></main>;
   }
   const projects = liveData.projects,
     clients = liveData.clients;
@@ -324,7 +326,7 @@ export default function Home() {
         </div>
       </aside>
       <section className="workspace">
-        {!isLive && <div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Sheet refresh is taking longer than expected':'Refreshing live Google Sheet'}</b><small>{syncDelayed?'Showing the last verified snapshot while the console retries automatically.':'The last verified snapshot is ready; live figures will replace it automatically.'}</small></div></div>}
+        {!isLive && <div className="live-sync-state"><span></span><div><b>{syncDelayed?'Live Sheet refresh is taking longer than expected':'Refreshing live Google Sheet'}</b><small>{syncDelayed?'The console will retry automatically; no browser or server snapshot is used.':'Reading the current source data; published figures will replace this message automatically.'}</small></div></div>}
         <header>
           <div>
             <p>Commercial intelligence</p>
