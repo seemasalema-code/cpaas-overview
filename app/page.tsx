@@ -74,6 +74,7 @@ export default function Home() {
   useEffect(() => setMonthOpen(false), [view]);
   useEffect(() => {
     let active = true;
+    let refreshing = false;
     let retryTimer:ReturnType<typeof setTimeout>|undefined;
     const apply = (x:any) => {
       if (!active || !x) return;
@@ -82,17 +83,28 @@ export default function Home() {
       const months=Array.from(new Set<string>(x.clientMonthly.map((r:any)=>r.month))).sort();
       setSelectedMonths((current:string[])=>{const valid=current.filter((m)=>months.includes(m));return valid.length?valid:months;});
     };
-    const refresh = () =>
-      fetch('/api/dashboard', { cache: 'no-store' })
+    const refresh = () => {
+      if(refreshing)return Promise.resolve();
+      refreshing=true;
+      return fetch('/api/dashboard', { cache: 'no-store' })
         .then((r) => r.json().catch(() => null))
         .then(apply)
-        .catch(() => {if(active)setSyncDelayed(true)});
+        .catch(() => {if(active)setSyncDelayed(true)})
+        .finally(()=>{refreshing=false;});
+    };
     refresh();
     const timer = setInterval(refresh, 300000);
+    const refreshWhenVisible=()=>{if(document.visibilityState==='visible')refresh();};
+    document.addEventListener('visibilitychange',refreshWhenVisible);
+    window.addEventListener('focus',refreshWhenVisible);
+    window.addEventListener('online',refreshWhenVisible);
     return () => {
       active = false;
       clearInterval(timer);
       clearTimeout(retryTimer);
+      document.removeEventListener('visibilitychange',refreshWhenVisible);
+      window.removeEventListener('focus',refreshWhenVisible);
+      window.removeEventListener('online',refreshWhenVisible);
     };
   }, []);
   useEffect(() => {
