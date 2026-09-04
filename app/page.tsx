@@ -78,6 +78,11 @@ const financialYearLabel = (date = new Date()) => {
   const start = date.getMonth() >= 3 ? date.getFullYear() : date.getFullYear() - 1;
   return `FY ${start}-${String(start + 1).slice(-2)}`;
 };
+const financialYearForMonth = (month: string) => {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const start = monthNumber >= 4 ? year : year - 1;
+  return `FY ${start}-${String(start + 1).slice(-2)}`;
+};
 export default function Home() {
   const [data, setData] = useState<any | null>(null),
     allMonths = useMemo(
@@ -96,6 +101,7 @@ export default function Home() {
     [industry, setIndustry] = useState('All industries'),
     [status, setStatus] = useState('All statuses'),
     [botType, setBotType] = useState('All bot types'),
+    [selectedFinancialYear, setSelectedFinancialYear] = useState(financialYearLabel()),
     [selectedMonths, setSelectedMonths] = useState<string[]>([]),
     [projectSort, setProjectSort] = useState<ProjectSort>('default'),
     [monthOpen, setMonthOpen] = useState(false);
@@ -113,7 +119,11 @@ export default function Home() {
       setData(x);setIsLive(true);setSyncDelayed(false);
       setRetryNow(()=>refresh);
       const months=Array.from(new Set<string>(x.clientMonthly.map((r:any)=>r.month))).sort();
-      setSelectedMonths((current:string[])=>{const valid=current.filter((m)=>months.includes(m));return valid.length?valid:months;});
+      setSelectedMonths((current:string[])=>{
+        const valid=current.filter((m)=>months.includes(m));
+        const currentFinancialYearMonths=months.filter((m)=>financialYearForMonth(m)===financialYearLabel());
+        return valid.length ? valid : (currentFinancialYearMonths.length?currentFinancialYearMonths:months);
+      });
     };
     const refresh = () => {
       if(refreshing)return Promise.resolve();
@@ -163,6 +173,18 @@ export default function Home() {
   // the hook order and blank the page on the first successful refresh.
   const projects = liveData?.projects ?? [],
     clients = liveData?.clients ?? [];
+  const availableFinancialYears = useMemo(
+    () => Array.from(new Set(allMonths.map(financialYearForMonth))).sort().reverse(),
+    [allMonths],
+  );
+  const selectedFinancialYearMonths = useMemo(
+    () => allMonths.filter((month) => financialYearForMonth(month) === selectedFinancialYear),
+    [allMonths, selectedFinancialYear],
+  );
+  const selectFinancialYear = (value: string) => {
+    setSelectedFinancialYear(value);
+    setSelectedMonths(allMonths.filter((month) => financialYearForMonth(month) === value));
+  };
   const industries = [
       'All industries',
       ...Array.from(new Set(projects.map((p) => p.industry))).sort(),
@@ -429,14 +451,23 @@ export default function Home() {
               </label>
             </>
           )}
+          {view !== 'forecast' && <label className="financial-year-picker">
+            <span>Financial year</span>
+            <select
+              value={selectedFinancialYear}
+              onChange={(e) => selectFinancialYear(e.target.value)}
+            >
+              {availableFinancialYears.map((year) => <option key={year}>{year}</option>)}
+            </select>
+          </label>}
           {view !== 'forecast' && <div className="month-picker" ref={monthPickerRef}>
             <button
               aria-expanded={monthOpen}
               onClick={() => setMonthOpen(!monthOpen)}
             >
               <Filter />
-              {selectedMonths.length === allMonths.length
-                ? 'All months'
+              {selectedMonths.length === selectedFinancialYearMonths.length
+                ? 'All FY months'
                 : selectedMonths.length + ' months'}
             </button>
             {monthOpen && (
@@ -444,14 +475,14 @@ export default function Home() {
                 <label>
                   <input
                     type="checkbox"
-                    checked={selectedMonths.length === allMonths.length}
+                    checked={selectedMonths.length === selectedFinancialYearMonths.length}
                     onChange={(e) =>
-                      setSelectedMonths(e.target.checked ? allMonths : [])
+                      setSelectedMonths(e.target.checked ? selectedFinancialYearMonths : [])
                     }
                   />
-                  <b>All months</b>
+                  <b>All months in {selectedFinancialYear}</b>
                 </label>
-                {allMonths.map((m) => (
+                {selectedFinancialYearMonths.map((m) => (
                   <label key={m}>
                     <input
                       type="checkbox"
@@ -494,7 +525,7 @@ export default function Home() {
               )}
             </div>
           )}
-          <span>{view === 'forecast' ? `${liveData?.financialYear || financialYearLabel()} forecast · remaining months to March` : `Chatbot R&M + WA + RCS · ${liveData?.financialYear || financialYearLabel()} only`}</span>
+          <span>{view === 'forecast' ? `${liveData?.financialYear || financialYearLabel()} forecast · remaining months to March` : `Chatbot R&M + WA + RCS · ${selectedFinancialYear}`}</span>
         </div>
         {view === 'overview' ? (
           <div className="content">
@@ -704,7 +735,10 @@ export default function Home() {
           <ForecastView
             rows={data.forecastClientMonthly || []}
             monthly={liveData.forecastMonthly || []}
-            actualRows={liveMonthly || []}
+            actualRows={(liveMonthly || []).filter((row: any) =>
+              row.month >= (liveData?.reportingStart || '') &&
+              row.month <= new Date().toISOString().slice(0, 7),
+            )}
             query={query}
             financialYear={liveData?.financialYear || financialYearLabel()}
             reportingEnd={liveData?.reportingEnd}

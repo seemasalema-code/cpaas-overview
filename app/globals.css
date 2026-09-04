@@ -1403,11 +1403,14 @@ td small {
 /* CPaaS editorial type system and Client 360 clarity. */
 :root { --cpaas-serif: Georgia, 'Times New Roman', serif; }
 body,
+body *,
 button,
 input,
 select,
-textarea {
-  font-family: var(--cpaas-serif);
+textarea,
+table,
+svg text {
+  font-family: var(--cpaas-serif) !important;
 }
 h1,
 h2,
@@ -1416,7 +1419,16 @@ h3,
 .workspace h1,
 .brand b {
   font-family: var(--cpaas-serif);
-  font-weight: 700;
+  font-weight: 700 !important;
+}
+th {
+  font-weight: 700 !important;
+}
+td {
+  font-weight: 400 !important;
+}
+td b {
+  font-weight: 700 !important;
 }
 .workspace h1,
 .heading h2 {
@@ -1487,6 +1499,23 @@ h3,
   line-height: 1.35;
 }
 .client360-list td b {
+  font-weight: 700;
+}
+.financial-year-picker {
+  flex: 0 0 auto;
+  min-width: 146px;
+  gap: 5px;
+}
+.financial-year-picker span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.financial-year-picker select {
+  min-width: 89px;
   font-weight: 700;
 }
 @media (max-width: 1100px) {
