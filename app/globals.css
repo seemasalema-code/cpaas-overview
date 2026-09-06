@@ -1630,3 +1630,25 @@ td small { font-size: 10px; line-height: 1.35; }
   .client360-list table { min-width: 900px; }
   .client360-list td { font-size: 12px; }
 }
+
+/* Keep the portfolio clear on compact laptops: insight cards continue below the
+   records, and chips always reflow instead of competing for the same space. */
+.project-segment-head .client-segments {
+  grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)) !important;
+  gap: 16px !important;
+}
+.project-segment-head .client-segments button {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  white-space: normal;
+}
+@media (max-width: 1900px) {
+  .project-layout { grid-template-columns: minmax(0, 1fr) !important; }
+  .project-side { position: static; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+}
+@media (max-width: 760px) {
+  .project-segment-head .client-segments { grid-template-columns: 1fr !important; gap: 12px !important; }
+  .project-segment-head .client-segments button { min-height: 96px; }
+}
