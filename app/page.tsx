@@ -877,14 +877,14 @@ function Client360({
         <span><b>Matched-client filter</b><small>Use the search above, then export only the rows currently in view.</small></span>
         <button type="button" className="export-filtered" onClick={() => downloadCsv('cpaas-client-360-filtered.csv', ['Client','Chatbots','Channels','Chatbot revenue','Chatbot cost','Chatbot margin','WA revenue','WA cost','WA margin','RCS revenue','RCS cost','RCS margin','Vendor MR revenue','Vendor MR cost','MR recovery gap','Net revenue','Net cost','Net margin','Margin assessment'], visible.map((r:any) => [r.client,r.projects.length,[r.hasWA?'WA':'',r.hasRCS?'RCS':''].filter(Boolean).join(' + '),r.chatbotRevenue,r.chatbotCost,r.chatbotMargin,r.waRevenue,r.waCost,r.waMargin,r.rcsRevenue,r.rcsCost,r.rcsMargin,r.chatbotRentalRevenue,r.chatbotRentalCost,r.mrGap,r.netRevenue,r.netCost,r.netMargin,r.netMargin<0?'Loss remains after WA/RCS':r.recoveredByUsage?'WA/RCS currently offsets chatbot loss':r.usageRisk?'WA/RCS stream has negative margin':'Positive']))}>Export filtered CSV</button>
       </div>
-      <div className="client360-grid">
+      <div className={'client360-grid' + (current ? ' client360-grid--detail' : '')}>
         <div className="table-card client360-list">
           <table><thead><tr><th>Client</th><th>Chatbots</th><th>Channels</th><th>Chatbot</th><th>WA</th><th>RCS</th><th>Chatbot margin</th><th>Net margin</th></tr></thead>
             <tbody>{visible.map((r) => <tr key={r.key} className={selected === r.key ? 'selected' : ''} onClick={() => setSelected(r.key)}><td><b>{r.client}</b>{r.chatbotMargin < 0 && <em className="negative-chip">Chatbot loss</em>}{r.recoveredByUsage && <em className="offset-chip">Offset by WA/RCS</em>}</td><td>{r.projects.length}</td><td><span className="channel-pills">{r.hasWA && <em>WA</em>}{r.hasRCS && <em>RCS</em>}</span></td><td>{compact(r.chatbotRevenue)}</td><td>{compact(r.waRevenue)}</td><td>{compact(r.rcsRevenue)}</td><td className={r.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(r.chatbotMargin)}</td><td className={r.netMargin < 0 ? 'bad' : 'good'}>{compact(r.netMargin)}</td></tr>)}</tbody>
           </table>
         </div>
-        <aside className="client360-detail">
-          {!current ? <div className="client360-empty"><Users /><b>Select a client</b><span>Click a row to see total month-wise revenue and its chatbot portfolio.</span></div> : <>
+        {current && <aside className="client360-detail">
+          <>
             <div className="client360-detail-head"><span><small>CLIENT 360</small><b>{current.client}{current.chatbotMargin < 0 && <em className="negative-chip">Chatbot loss</em>}</b></span><button onClick={() => setSelected(null)}>×</button></div>
             <div className="client360-finance"><div><small>Chatbot revenue</small><b>{compact(current.chatbotRevenue)}</b></div><div><small>Chatbot margin</small><b className={current.chatbotMargin < 0 ? 'bad' : 'good'}>{compact(current.chatbotMargin)}</b></div><div><small>WA margin</small><b className={current.waMargin < 0 ? 'bad' : 'good'}>{compact(current.waMargin)}</b></div><div><small>RCS margin</small><b className={current.rcsMargin < 0 ? 'bad' : 'good'}>{compact(current.rcsMargin)}</b></div><div><small>Vendor MR revenue</small><b>{compact(current.chatbotRentalRevenue)}</b></div><div><small>Vendor MR cost</small><b>{compact(current.chatbotRentalCost)}</b></div><div><small>MR recovery gap</small><b className={current.mrGap ? 'bad' : 'good'}>{compact(current.mrGap)}</b></div><div><small>Net margin</small><b className={current.netMargin < 0 ? 'bad' : 'good'}>{compact(current.netMargin)}</b></div></div>
             <div className="client360-recovery"><b>Margin recovery check</b><div><span>WA + RCS margin contribution</span><strong className={current.usageMargin < 0 ? 'bad' : 'good'}>{compact(current.usageMargin)}</strong></div><div className={current.netMargin < 0 ? 'attention' : ''}><span>Overall result after chatbot + consumables</span><strong className={current.netMargin < 0 ? 'bad' : 'good'}>{compact(current.netMargin)}</strong></div><p>{current.netMargin < 0 ? 'The client remains loss-making after WA and RCS. Check vendor MR pricing and cost first.' : current.recoveredByUsage ? 'WA/RCS currently offsets the chatbot loss. Verify this positive usage margin is recurring before treating the account as recovered.' : current.usageRisk ? 'A consumable stream is loss-making. Check channel price and supplier cost before relying on it to recover chatbot MR.' : current.mrGap > 0 ? 'Vendor MR/rental cost is higher than MR revenue. Check contract charging, vendor rate and billing start date.' : 'No negative-margin recovery signal is present in the source values for this client.'}</p></div>
@@ -900,8 +900,8 @@ function Client360({
                 <span className="history-mix"><small>Channel mix</small><em>Chatbot <b>{compact(r.chatbotRevenue||0)}</b></em><em>WA <b>{compact(r.waRevenue||0)}</b></em><em>RCS <b>{compact(r.rcsRevenue||0)}</b></em></span>
               </div>;
             })}</div>
-          </>}
-        </aside>
+          </>
+        </aside>}
       </div>
     </div>
   );
