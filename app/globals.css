@@ -1514,3 +1514,119 @@ td b {
   .client360-reading-note { flex-direction: column; }
   .client360-list td { font-size: 16px; }
 }
+
+/* Responsive dashboard rhythm: preserve readable chips and keep wide records
+   contained in their own scrollable panels on 14-inch laptops and phones. */
+:root { --dashboard-gap: 14px; }
+.workspace,
+.content,
+.project-layout,
+.client-layout,
+.client360-grid,
+.project-side { min-width: 0; }
+.filters { gap: 10px; row-gap: 10px; align-items: stretch; }
+.filters label { min-width: 0; }
+.filters > label:first-child { flex: 1 1 280px; width: auto; }
+.filters > span { white-space: nowrap; }
+.kpis { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--dashboard-gap); }
+.portfolio-kpis,
+.client-segments,
+.project-segment-head .client-segments {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--dashboard-gap);
+}
+.portfolio-kpis > button,
+.client-segments button,
+.client360-kpis button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.portfolio-kpis > button,
+.client-segments button { min-height: 112px; }
+.portfolio-kpis span,
+.client-segments span { font-size: 10px; line-height: 1.35; }
+.portfolio-kpis b,
+.client-segments b { font-size: 22px; }
+.portfolio-kpis small,
+.client-segments small { font-size: 10px; line-height: 1.35; }
+.project-layout > .table,
+.client-layout .table,
+.table-card,
+.forecast-table {
+  min-width: 0;
+  max-width: 100%;
+  overflow: auto;
+  overscroll-behavior-x: contain;
+}
+.project-layout > .table table { min-width: 1050px; }
+.client-layout .table table { min-width: 920px; }
+table { font-size: 12px; }
+th { font-size: 10px; }
+td { font-size: 12px; line-height: 1.4; }
+td small { font-size: 10px; line-height: 1.35; }
+.client360-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--dashboard-gap);
+  margin: 16px 0;
+}
+.client360-kpis button { min-height: 112px; padding: 15px 16px; }
+.client360-kpis b { font-size: 25px; }
+.client360-kpis span { margin-top: 7px; font-size: 13px; line-height: 1.3; }
+.client360-kpis small { margin-top: 5px; font-size: 10px; }
+.client360-reading-note { margin-bottom: 16px; font-size: 12px; }
+.client360-list td { font-size: 12px; line-height: 1.4; }
+.client360-list th { font-size: 10px; }
+.client360-list table { min-width: 1020px; }
+.client360-grid { gap: var(--dashboard-gap); }
+.client360-detail { min-width: 0; }
+.heading-actions,
+.table-export-bar,
+.client360-record-tools { flex-wrap: wrap; }
+
+@media (max-width: 1720px) {
+  .project-layout { grid-template-columns: minmax(0, 1fr); }
+  .project-side { position: static; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1250px) {
+  .client-layout { grid-template-columns: minmax(0, 1fr); }
+  .client-layout > .card { position: static; }
+  .client360-grid { grid-template-columns: minmax(0, 1fr); }
+  .client360-detail { max-height: none; }
+  .project-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 950px) {
+  .filters { margin-left: 18px; margin-right: 18px; }
+  .content { padding-left: 18px; padding-right: 18px; }
+  .project-side { grid-template-columns: 1fr; }
+  .portfolio-kpis,
+  .client-segments,
+  .project-segment-head .client-segments { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .client360-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 650px) {
+  .workspace > header { padding: 16px 17px; }
+  .filters { margin: 0 14px; padding: 10px; overflow: visible; }
+  .filters label,
+  .filters > label:first-child,
+  .filters .month-picker { width: 100%; flex: 1 1 100%; }
+  .filters > span { display: none; }
+  .content,
+  .client360-wrap { padding-left: 14px; padding-right: 14px; }
+  .kpis,
+  .portfolio-kpis,
+  .client-segments,
+  .project-segment-head .client-segments,
+  .client360-kpis { grid-template-columns: 1fr; }
+  .portfolio-kpis > button,
+  .client-segments button,
+  .client360-kpis button { min-height: 96px; }
+  .client360-reading-note { flex-direction: column; font-size: 11px; }
+  .heading,
+  .heading-actions,
+  .table-export-bar,
+  .client360-record-tools { align-items: stretch; flex-direction: column; }
+  .export-filtered { width: 100%; }
+  .project-layout > .table table { min-width: 920px; }
+  .client360-list table { min-width: 900px; }
+  .client360-list td { font-size: 12px; }
+}
