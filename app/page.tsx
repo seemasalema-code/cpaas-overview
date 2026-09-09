@@ -13,11 +13,53 @@ const PRE_LIVE=['Discovery','Quotes Given','Development','UAT'];
 type Tab='overview'|'clients'|'growth'|'pipeline'|'actions'|'risks';
 type Drawer={kind:'records'|'client';title:string;subtitle:string;records:any[];client?:any}|null;
 
-const readLiveCsv=(gid:number)=>{
- const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),90_000);
+const LIVE_FETCH_TIMEOUT_MS=12_000;
+const LIVE_QUERY_TIMEOUT_MS=15_000;
+type GvizColumn={id?:string;label?:string;type?:string};
+type GvizCell={v?:unknown}|null;
+type GvizResponse={status?:string;table?:{cols?:GvizColumn[];rows?:{c?:GvizCell[]}[]}};
+const csvCell=(value:unknown)=>`"${String(value??'').replaceAll('"','""')}"`;
+const gvizValue=(cell:GvizCell,column:GvizColumn)=>{
+ if(!cell||cell.v===null||cell.v===undefined)return '';
+ const value=cell.v;
+ if(value instanceof Date)return value.toISOString().slice(0,column.type==='datetime'?19:10);
+ if((column.type==='date'||column.type==='datetime')&&typeof value==='string'){
+  const match=value.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
+  if(match)return `${match[1]}-${String(Number(match[2])+1).padStart(2,'0')}-${match[3].padStart(2,'0')}`;
+ }
+ return String(value);
+};
+const csvFromGviz=(payload:GvizResponse)=>{
+ if(payload.status!=='ok'||!payload.table)throw new Error('Google live query did not return data');
+ const columns=payload.table.cols??[];
+ if(!columns.length)throw new Error('Google live query returned no columns');
+ const header=columns.map((column,index)=>column.label||column.id||`Column ${index+1}`);
+ const rows=(payload.table.rows??[]).map(row=>columns.map((column,index)=>gvizValue(row.c?.[index]??null,column)));
+ if(!rows.length)throw new Error('Google live query returned no data rows');
+ return [header,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');
+};
+const readGvizCsv=(gid:number)=>new Promise<string>((resolve,reject)=>{
+ const callbackName=`liveSheet_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+ const callbackTarget=window as Window & Record<string,(payload:GvizResponse)=>void>;
+ const script=document.createElement('script');let settled=false;
+ const cleanup=()=>{window.clearTimeout(timeout);script.remove();delete callbackTarget[callbackName]};
+ const finish=(handler:(value:any)=>void,value:any)=>{if(settled)return;settled=true;cleanup();handler(value)};
+ const timeout=window.setTimeout(()=>finish(reject,new Error('Google live query timed out')),LIVE_QUERY_TIMEOUT_MS);
+ callbackTarget[callbackName]=(payload)=>{try{finish(resolve,csvFromGviz(payload))}catch(error){finish(reject,error)}};
+ script.async=true;
+ script.onerror=()=>finish(reject,new Error('Google live query could not be reached'));
+ script.src=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?gid=${encodeURIComponent(gid)}&tqx=${encodeURIComponent(`out:json;responseHandler:${callbackName}`)}`;
+ document.head.appendChild(script);
+});
+const readDirectCsv=(gid:number)=>{
+ const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),LIVE_FETCH_TIMEOUT_MS);
  return fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${gid}`,{cache:'no-store',signal:controller.signal})
-  .then(async response=>{if(!response.ok)throw new Error(`Google Sheet export returned ${response.status}`);const text=await response.text();if(!text.trim()||/^\s*<!doctype html/i.test(text))throw new Error('Google Sheet export is not publicly readable');return text;})
+  .then(async response=>{if(!response.ok)throw new Error(`Google Sheet export returned ${response.status}`);const text=await response.text();if(!text.trim()||/^\s*<!doctype html/i.test(text))throw new Error('Google Sheet export did not return live data');return text;})
   .finally(()=>window.clearTimeout(timeout));
+};
+const readLiveCsv=async(gid:number)=>{
+ try{return await readDirectCsv(gid)}
+ catch{try{return await readGvizCsv(gid)}catch{throw new Error('The current Google Sheet data could not be reached')}}
 };
 const compact=(value:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',notation:'compact',maximumFractionDigits:1}).format(value||0);
 const currency=(value:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(value||0);
