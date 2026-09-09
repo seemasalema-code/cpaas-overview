@@ -17,8 +17,8 @@
   --soft-red:#ffebef;
 }
 
-body,button,input,select{font-family:'Poppins',Arial,sans-serif!important}body{font-size:16px;background:radial-gradient(circle at 78% -10%,#e9f8f5 0,transparent 31%),radial-gradient(circle at 12% 0,#eeeaff 0,transparent 34%),var(--canvas)}
-.intel-header h1,.intel-brand b,.metric-card>strong,.card-heading h2,.section-intro h2,.matrix-cell b,.drawer-head h2,.client-summary b,.drawer-finance b,.data-health>div b,.load-mark b,h1,h2,h3{font-family:'Poppins',Arial,sans-serif!important}
+body,button,input,select{font-family:'Lexend',Arial,sans-serif!important}body{font-size:16px;background:radial-gradient(circle at 78% -10%,#e9f8f5 0,transparent 31%),radial-gradient(circle at 12% 0,#eeeaff 0,transparent 34%),var(--canvas)}
+.intel-header h1,.intel-brand b,.metric-card>strong,.card-heading h2,.section-intro h2,.matrix-cell b,.drawer-head h2,.client-summary b,.drawer-finance b,.data-health>div b,.load-mark b,h1,h2,h3{font-family:'Lexend',Arial,sans-serif!important}
 .intel-nav{background:linear-gradient(180deg,#f0f4ff 0%,#f9efff 54%,#edf9f5 100%);color:var(--ink);border-right:1px solid #d9e2f4;box-shadow:8px 0 30px #5872d80b}
 .intel-brand{display:block;padding:12px 11px 32px}
 .intel-brand b{font-size:21px;line-height:1.2;letter-spacing:-.03em;color:#263451}
