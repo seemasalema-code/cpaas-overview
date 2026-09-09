@@ -8,7 +8,7 @@ import {buildDashboard} from '@/lib/csv-dashboard';
 const SOURCE_SPREADSHEET_ID='1udQZmSHEpLWuQJO2k0t4UvA3zU8fUFkvx_1lIfINId8';
 const SOURCE_URL=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/edit?gid=888299704#gid=888299704`;
 const LIVE_TABS=[888299704,559338930,172604510,269889098] as const;
-const PRODUCT_COLORS={WhatsApp:'#627df4',RCS:'#22a898',Chatbot:'#976de8'} as const;
+const PRODUCT_COLORS={WhatsApp:'#9dce4f',RCS:'#48a98a',Chatbot:'#8a7bdd'} as const;
 const PRE_LIVE=['Discovery','Quotes Given','Development','UAT'];
 type Tab='overview'|'clients'|'growth'|'pipeline'|'actions'|'risks';
 type Drawer={kind:'records'|'client';title:string;subtitle:string;records:any[];client?:any}|null;
