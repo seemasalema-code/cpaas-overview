@@ -17,8 +17,8 @@
   --soft-red:#ffebef;
 }
 
-body,button,input,select{font-family:'Segoe UI',SegoeUI,Arial,sans-serif!important}body{font-size:16px;background:radial-gradient(circle at 78% -10%,#e9f8f5 0,transparent 31%),radial-gradient(circle at 12% 0,#eeeaff 0,transparent 34%),var(--canvas)}
-.intel-header h1,.intel-brand b,.metric-card>strong,.card-heading h2,.section-intro h2,.matrix-cell b,.drawer-head h2,.client-summary b,.drawer-finance b,.data-health>div b,.load-mark b,h1,h2,h3{font-family:'Segoe UI',SegoeUI,Arial,sans-serif!important}
+body,button,input,select{font-family:'Poppins',Arial,sans-serif!important}body{font-size:16px;background:radial-gradient(circle at 78% -10%,#e9f8f5 0,transparent 31%),radial-gradient(circle at 12% 0,#eeeaff 0,transparent 34%),var(--canvas)}
+.intel-header h1,.intel-brand b,.metric-card>strong,.card-heading h2,.section-intro h2,.matrix-cell b,.drawer-head h2,.client-summary b,.drawer-finance b,.data-health>div b,.load-mark b,h1,h2,h3{font-family:'Poppins',Arial,sans-serif!important}
 .intel-nav{background:linear-gradient(180deg,#f0f4ff 0%,#f9efff 54%,#edf9f5 100%);color:var(--ink);border-right:1px solid #d9e2f4;box-shadow:8px 0 30px #5872d80b}
 .intel-brand{display:block;padding:12px 11px 32px}
 .intel-brand b{font-size:21px;line-height:1.2;letter-spacing:-.03em;color:#263451}
@@ -41,7 +41,7 @@ body,button,input,select{font-family:'Segoe UI',SegoeUI,Arial,sans-serif!importa
 
 .insight-list{gap:9px}.insight-list button{padding:13px;grid-template-columns:26px 1fr 18px}.insight-list button>span{height:25px;width:25px;font-size:12px}.insight-list p{font-size:14px;line-height:1.5;color:#495a74}.insight-list svg{width:17px}.ranked-list button{padding:13px 2px;grid-template-columns:32px 1fr auto}.ranked-list em{font-size:12px}.ranked-list span b,.ranked-list strong{font-size:14px}.ranked-list span small{font-size:12px}
 
-.section-intro{margin:4px 0 19px}.section-intro h2{font-size:25px;line-height:1.2}.section-intro p{font-size:14px;line-height:1.55}.section-intro>button,.data-health button{padding:11px 13px;border-color:#cbd7ec;font-size:14px;background:#fff}.section-intro>button svg,.data-health button svg{width:17px}.link-button{font-size:13px;color:#111827}.link-button small{font-size:12px;color:#74829a}.empty-state{padding:25px;font-size:14px}
+.section-intro{margin:4px 0 19px}.section-intro h2{font-size:25px;line-height:1.2}.section-intro p{font-size:14px;line-height:1.55}.section-intro>button,.data-health button{padding:11px 13px;border-color:#cbd7ec;font-size:14px;background:#fff}.section-intro>button svg,.data-health button svg{width:17px}.link-button{font-size:16px;line-height:1.35;color:#111827!important}.link-button small{font-size:12px;color:#74829a!important;line-height:1.45}.empty-state{padding:25px;font-size:14px}
 
 .logic-banner{padding:16px 18px;border-color:#d9cdf7;background:#f8f5ff;color:#503b79}.logic-banner svg{width:22px}.logic-banner b{font-size:15px}.logic-banner span{font-size:13px;line-height:1.5;color:#665686}.pipeline-kpis{grid-template-columns:repeat(6,minmax(0,1fr))}.pipeline-kpis .metric-card,.risk-kpis .metric-card{min-height:144px}.matrix{gap:11px}.matrix-cell{min-height:126px;padding:15px;border-color:#dce4f1}.matrix-cell span{font-size:13px}.matrix-cell b{font-size:31px}.matrix-cell small{font-size:12px;line-height:1.4}.data-health{padding:10px}.data-health>div b{font-size:42px}.data-health>div span{font-size:14px}.data-health p{font-size:14px;line-height:1.65}.risk-kind{font-size:12px}
 
