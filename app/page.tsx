@@ -7,60 +7,34 @@ import {buildDashboard} from '@/lib/csv-dashboard';
 
 const SOURCE_SPREADSHEET_ID='1udQZmSHEpLWuQJO2k0t4UvA3zU8fUFkvx_1lIfINId8';
 const SOURCE_URL=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/edit?gid=888299704#gid=888299704`;
-const LIVE_TABS=[888299704,559338930,172604510,269889098] as const;
 const PRODUCT_COLORS={WhatsApp:'#9dce4f',RCS:'#48a98a',Chatbot:'#8a7bdd'} as const;
 const PRE_LIVE=['Discovery','Quotes Given','Development','UAT'];
 type Tab='overview'|'clients'|'growth'|'pipeline'|'actions'|'risks';
 type Drawer={kind:'records'|'client';title:string;subtitle:string;records:any[];client?:any}|null;
 
-const LIVE_FETCH_TIMEOUT_MS=12_000;
-const LIVE_QUERY_TIMEOUT_MS=15_000;
-type GvizColumn={id?:string;label?:string;type?:string};
-type GvizCell={v?:unknown}|null;
-type GvizResponse={status?:string;table?:{cols?:GvizColumn[];rows?:{c?:GvizCell[]}[]}};
+const LIVE_ENDPOINT='https://script.google.com/macros/s/AKfycbx4BAvT_6RSCwSIJfpMrX4keImpIbAJaLvaRAtfyNEfX_usR7AcCSA8os93-qb1C5Ql/exec';
+const LIVE_TABS=['projects','rm','wa','rcs'] as const;
+type LiveTab=typeof LIVE_TABS[number];
+type LivePayload={ok?:boolean;rows?:unknown[][];error?:string;fetchedAt?:string};
+let liveRequestCounter=0;
 const csvCell=(value:unknown)=>`"${String(value??'').replaceAll('"','""')}"`;
-const gvizValue=(cell:GvizCell,column:GvizColumn)=>{
- if(!cell||cell.v===null||cell.v===undefined)return '';
- const value=cell.v;
- if(value instanceof Date)return value.toISOString().slice(0,column.type==='datetime'?19:10);
- if((column.type==='date'||column.type==='datetime')&&typeof value==='string'){
-  const match=value.match(/^Date\((\d{4}),(\d{1,2}),(\d{1,2})/);
-  if(match)return `${match[1]}-${String(Number(match[2])+1).padStart(2,'0')}-${match[3].padStart(2,'0')}`;
- }
- return String(value);
-};
-const csvFromGviz=(payload:GvizResponse)=>{
- if(payload.status!=='ok'||!payload.table)throw new Error('Google live query did not return data');
- const columns=payload.table.cols??[];
- if(!columns.length)throw new Error('Google live query returned no columns');
- const header=columns.map((column,index)=>column.label||column.id||`Column ${index+1}`);
- const rows=(payload.table.rows??[]).map(row=>columns.map((column,index)=>gvizValue(row.c?.[index]??null,column)));
- if(!rows.length)throw new Error('Google live query returned no data rows');
- return [header,...rows].map(row=>row.map(csvCell).join(',')).join('\r\n');
-};
-const readGvizCsv=(gid:number)=>new Promise<string>((resolve,reject)=>{
- const callbackName=`liveSheet_${Date.now()}_${Math.random().toString(36).slice(2)}`;
- const callbackTarget=window as Window & Record<string,(payload:GvizResponse)=>void>;
+const csvFromRows=(rows:unknown[][])=>(rows??[]).map(row=>row.map(csvCell).join(',')).join('\r\n');
+const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
+ const callbackName=`cpaasLive_${Date.now()}_${liveRequestCounter++}`;
+ const callbackTarget=window as Window & Record<string,(payload:LivePayload)=>void>;
  const script=document.createElement('script');let settled=false;
  const cleanup=()=>{window.clearTimeout(timeout);script.remove();delete callbackTarget[callbackName]};
  const finish=(handler:(value:any)=>void,value:any)=>{if(settled)return;settled=true;cleanup();handler(value)};
- const timeout=window.setTimeout(()=>finish(reject,new Error('Google live query timed out')),LIVE_QUERY_TIMEOUT_MS);
- callbackTarget[callbackName]=(payload)=>{try{finish(resolve,csvFromGviz(payload))}catch(error){finish(reject,error)}};
+ const timeout=window.setTimeout(()=>finish(reject,new Error(`${tab} live endpoint timed out`)),120000);
+ callbackTarget[callbackName]=(payload)=>{
+  if(!payload||payload.ok!==true||!Array.isArray(payload.rows)){finish(reject,new Error(payload?.error||`${tab} returned no live rows`));return;}
+  finish(resolve,csvFromRows(payload.rows));
+ };
  script.async=true;
- script.onerror=()=>finish(reject,new Error('Google live query could not be reached'));
- script.src=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?gid=${encodeURIComponent(gid)}&tqx=${encodeURIComponent(`out:json;responseHandler:${callbackName}`)}`;
+ script.onerror=()=>finish(reject,new Error(`${tab} live endpoint could not be reached`));
+ script.src=`${LIVE_ENDPOINT}?tab=${encodeURIComponent(tab)}&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
  document.head.appendChild(script);
 });
-const readDirectCsv=(gid:number)=>{
- const controller=new AbortController(),timeout=window.setTimeout(()=>controller.abort(),LIVE_FETCH_TIMEOUT_MS);
- return fetch(`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/export?format=csv&gid=${gid}`,{cache:'no-store',signal:controller.signal})
-  .then(async response=>{if(!response.ok)throw new Error(`Google Sheet export returned ${response.status}`);const text=await response.text();if(!text.trim()||/^\s*<!doctype html/i.test(text))throw new Error('Google Sheet export did not return live data');return text;})
-  .finally(()=>window.clearTimeout(timeout));
-};
-const readLiveCsv=async(gid:number)=>{
- try{return await readDirectCsv(gid)}
- catch{try{return await readGvizCsv(gid)}catch{throw new Error('The current Google Sheet data could not be reached')}}
-};
 const compact=(value:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',notation:'compact',maximumFractionDigits:1}).format(value||0);
 const currency=(value:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(value||0);
 const pct=(value:number,base:number)=>base?`${((value/base)*100).toFixed(1)}%`:'—';
@@ -81,7 +55,7 @@ function ProductChip({product,active,onClick}:{product:string;active:boolean;onC
 export default function Home(){
  const [data,setData]=useState<any|null>(null),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState('');
  const [tab,setTab]=useState<Tab>('overview'),[query,setQuery]=useState(''),[month,setMonth]=useState('All months'),[industry,setIndustry]=useState('All industries'),[product,setProduct]=useState('All products'),[owner,setOwner]=useState('All owners'),[vendor,setVendor]=useState('All vendors'),[drawer,setDrawer]=useState<Drawer>(null);
- const refresh=()=>{setLoading(true);setLoadError('');return Promise.all(LIVE_TABS.map(readLiveCsv)).then(([projects,rm,wa,rcs])=>setData({...buildDashboard(projects,rm,wa,rcs,SOURCE_URL),updatedAt:new Date().toISOString()})).catch(()=>setLoadError('The live source could not be reached. Please retry; no saved data is shown.')).finally(()=>setLoading(false));};
+ const refresh=()=>{setLoading(true);setLoadError('');return Promise.allSettled(LIVE_TABS.map(readLiveCsv)).then(results=>{const values=results.map(result=>result.status==='fulfilled'?result.value:'');const failures=results.filter(result=>result.status==='rejected').length;if(failures===results.length)throw new Error('All live feeds failed');const [projects,rm,wa,rcs]=values;setData({...buildDashboard(projects,rm,wa,rcs,SOURCE_URL),updatedAt:new Date().toISOString()});if(failures)setLoadError(`${failures} live feed${failures===1?'':'s'} could not be loaded; the available live data is shown.`);}).catch(()=>setLoadError('The live endpoint could not be reached. Please retry; no saved data is shown.')).finally(()=>setLoading(false));};
  useEffect(()=>{refresh();const timer=window.setInterval(refresh,300000);const visible=()=>{if(document.visibilityState==='visible')refresh();};window.addEventListener('focus',visible);return()=>{window.clearInterval(timer);window.removeEventListener('focus',visible);};},[]);
 
  const consoleData=data?.consoleData,monthly=data?.clientMonthly??[],allMonths=useMemo(()=>[...new Set<string>(monthly.map((row:any)=>row.month))].sort(),[monthly]);
