@@ -12,27 +12,29 @@ const PRE_LIVE=['Discovery','Quotes Given','Development','UAT'];
 type Tab='overview'|'clients'|'growth'|'pipeline'|'actions'|'risks';
 type Drawer={kind:'records'|'client';title:string;subtitle:string;records:any[];client?:any}|null;
 
-const LIVE_ENDPOINT='https://script.google.com/macros/s/AKfycbx4BAvT_6RSCwSIJfpMrX4keImpIbAJaLvaRAtfyNEfX_usR7AcCSA8os93-qb1C5Ql/exec';
+const LIVE_SHEETS={projects:'Chatbot Projects',rm:'Chatbot R&M',wa:'WA_Consumables',rcs:'RCS_Consumables'} as const;
 const LIVE_TABS=['projects','rm','wa','rcs'] as const;
 type LiveTab=typeof LIVE_TABS[number];
-type LivePayload={ok?:boolean;rows?:unknown[][];error?:string;fetchedAt?:string};
 let liveRequestCounter=0;
 const csvCell=(value:unknown)=>`"${String(value??'').replaceAll('"','""')}"`;
 const csvFromRows=(rows:unknown[][])=>(rows??[]).map(row=>row.map(csvCell).join(',')).join('\r\n');
 const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
- const callbackName=`cpaasLive_${Date.now()}_${liveRequestCounter++}`;
- const callbackTarget=window as Window & Record<string,(payload:LivePayload)=>void>;
+ const callbackName=`cpaasGviz_${Date.now()}_${liveRequestCounter++}`;
+ const callbackTarget=window as Window & Record<string,(payload:any)=>void>;
  const script=document.createElement('script');let settled=false;
  const cleanup=()=>{window.clearTimeout(timeout);script.remove();delete callbackTarget[callbackName]};
  const finish=(handler:(value:any)=>void,value:any)=>{if(settled)return;settled=true;cleanup();handler(value)};
- const timeout=window.setTimeout(()=>finish(reject,new Error(`${tab} live endpoint timed out`)),120000);
- callbackTarget[callbackName]=(payload)=>{
-  if(!payload||payload.ok!==true||!Array.isArray(payload.rows)){finish(reject,new Error(payload?.error||`${tab} returned no live rows`));return;}
-  finish(resolve,csvFromRows(payload.rows));
+ const timeout=window.setTimeout(()=>finish(reject,new Error(`${tab} live sheet timed out`)),30000);
+ callbackTarget[callbackName]=(payload:any)=>{
+  if(!payload||payload.status!=='ok'||!payload.table){finish(reject,new Error(`${tab} returned no live rows`));return;}
+  const columns=payload.table.cols??[];
+  const rows=[columns.map((column:any,index:number)=>String(column?.label||column?.id||`Column ${index+1}`)),...(payload.table.rows??[]).map((row:any)=>columns.map((_:any,index:number)=>{const cell=row?.c?.[index];return cell?.f??cell?.v??'';}))];
+  finish(resolve,csvFromRows(rows));
  };
  script.async=true;
- script.onerror=()=>finish(reject,new Error(`${tab} live endpoint could not be reached`));
- script.src=`${LIVE_ENDPOINT}?tab=${encodeURIComponent(tab)}&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+ script.onerror=()=>finish(reject,new Error(`${tab} live sheet could not be reached`));
+ const tqx=`out:json;responseHandler:${callbackName}`;
+ script.src=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?sheet=${encodeURIComponent(LIVE_SHEETS[tab])}&tqx=${encodeURIComponent(tqx)}&_=${Date.now()}`;
  document.head.appendChild(script);
 });
 const compact=(value:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',notation:'compact',maximumFractionDigits:1}).format(value||0);
