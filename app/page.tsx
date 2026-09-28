@@ -23,6 +23,20 @@ type LiveTab=typeof LIVE_TABS[number];
 let liveRequestCounter=0;
 const csvCell=(value:unknown)=>`"${String(value??'').replaceAll('"','""')}"`;
 const csvFromRows=(rows:unknown[][])=>(rows??[]).map(row=>row.map(csvCell).join(',')).join('\r\n');
+const SNAPSHOT_URL='https://raw.githubusercontent.com/seemasalema-code/botpulse360/ee5f1aa6b2d1e9321bc96864f444cc995596cade/data.js';
+const readPublishedSnapshot=async()=>{
+ const response=await fetch(`${SNAPSHOT_URL}?_=${Date.now()}`,{cache:'no-store'});
+ if(!response.ok)throw new Error('Published Sheet snapshot unavailable');
+ const script=await response.text();
+ const json=script.replace(/^\s*window\.EMBEDDED_SHEETS_CURRENT\s*=\s*/,'').replace(/;\s*$/,'');
+ const workbook=JSON.parse(json) as Record<string,unknown[][]>;
+ return {
+  projects:csvFromRows(workbook['Chatbot Projects']??[]),
+  rm:csvFromRows(workbook['Chatbot R&M']??[]),
+  wa:csvFromRows(workbook.WA_Consumables??[]),
+  rcs:csvFromRows(workbook.RCS_Consumables??[]),
+ };
+};
 const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
  const callbackName=`cpaasGviz_${Date.now()}_${liveRequestCounter++}`;
  const callbackTarget=window as Window & Record<string,(payload:any)=>void>;
@@ -63,7 +77,7 @@ function ProductChip({product,active,onClick}:{product:string;active:boolean;onC
 export default function Home(){
  const [data,setData]=useState<any|null>(null),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState('');
  const [tab,setTab]=useState<Tab>('overview'),[query,setQuery]=useState(''),[month,setMonth]=useState('All months'),[industry,setIndustry]=useState('All industries'),[product,setProduct]=useState('All products'),[owner,setOwner]=useState('All owners'),[vendor,setVendor]=useState('All vendors'),[drawer,setDrawer]=useState<Drawer>(null);
- const refresh=()=>{setLoading(true);setLoadError('');return Promise.allSettled(LIVE_TABS.map(readLiveCsv)).then(results=>{const values=results.map(result=>result.status==='fulfilled'?result.value:'');const failures=results.filter(result=>result.status==='rejected').length;if(failures===results.length)throw new Error('All live feeds failed');const [projects,rm,wa,rcs]=values;setData({...buildDashboard(projects,rm,wa,rcs,SOURCE_URL),updatedAt:new Date().toISOString()});if(failures)setLoadError(`${failures} live feed${failures===1?'':'s'} could not be loaded; the available live data is shown.`);}).catch(()=>setLoadError('The live endpoint could not be reached. Please retry; no saved data is shown.')).finally(()=>setLoading(false));};
+ const refresh=()=>{setLoading(true);setLoadError('');const snapshotPromise=readPublishedSnapshot();snapshotPromise.then(snapshot=>setData((current:any)=>current??{...buildDashboard(snapshot.projects,snapshot.rm,snapshot.wa,snapshot.rcs,SOURCE_URL),updatedAt:new Date().toISOString()})).catch(()=>{});return Promise.allSettled(LIVE_TABS.map(readLiveCsv)).then(async results=>{const snapshot=await snapshotPromise;const failures=results.filter(result=>result.status==='rejected').length;const values=results.map((result,index)=>result.status==='fulfilled'?result.value:snapshot[LIVE_TABS[index]]);const [projects,rm,wa,rcs]=values;setData({...buildDashboard(projects,rm,wa,rcs,SOURCE_URL),updatedAt:new Date().toISOString()});if(failures)setLoadError(`${failures} live Sheet tab${failures===1?'':'s'} timed out; the last published sync is shown for those tabs.`);}).catch(()=>setLoadError('The live Sheet and published sync are temporarily unavailable. Please retry.')).finally(()=>setLoading(false));};
  useEffect(()=>{refresh();const timer=window.setInterval(refresh,300000);const visible=()=>{if(document.visibilityState==='visible')refresh();};window.addEventListener('focus',visible);return()=>{window.clearInterval(timer);window.removeEventListener('focus',visible);};},[]);
 
  const consoleData=data?.consoleData,monthly=data?.clientMonthly??[],allMonths=useMemo(()=>[...new Set<string>(monthly.map((row:any)=>row.month))].sort(),[monthly]);
