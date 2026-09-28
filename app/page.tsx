@@ -12,7 +12,12 @@ const PRE_LIVE=['Discovery','Quotes Given','Development','UAT'];
 type Tab='overview'|'clients'|'growth'|'pipeline'|'actions'|'risks';
 type Drawer={kind:'records'|'client';title:string;subtitle:string;records:any[];client?:any}|null;
 
-const LIVE_SHEETS={projects:'Chatbot Projects',rm:'Chatbot R&M',wa:'WA_Consumables',rcs:'RCS_Consumables'} as const;
+const LIVE_SHEETS={
+ projects:{name:'Chatbot Projects',range:'A1:AS5000'},
+ rm:{name:'Chatbot R&M',range:'A1:AM10000'},
+ wa:{name:'WA_Consumables',range:'A1:Z2000'},
+ rcs:{name:'RCS_Consumables',range:'A1:Z5000'},
+} as const;
 const LIVE_TABS=['projects','rm','wa','rcs'] as const;
 type LiveTab=typeof LIVE_TABS[number];
 let liveRequestCounter=0;
@@ -24,7 +29,7 @@ const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
  const script=document.createElement('script');let settled=false;
  const cleanup=()=>{window.clearTimeout(timeout);script.remove();delete callbackTarget[callbackName]};
  const finish=(handler:(value:any)=>void,value:any)=>{if(settled)return;settled=true;cleanup();handler(value)};
- const timeout=window.setTimeout(()=>finish(reject,new Error(`${tab} live sheet timed out`)),30000);
+ const timeout=window.setTimeout(()=>finish(reject,new Error(`${tab} live sheet timed out`)),15000);
  callbackTarget[callbackName]=(payload:any)=>{
   if(!payload||payload.status!=='ok'||!payload.table){finish(reject,new Error(`${tab} returned no live rows`));return;}
   const columns=payload.table.cols??[];
@@ -34,7 +39,8 @@ const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
  script.async=true;
  script.onerror=()=>finish(reject,new Error(`${tab} live sheet could not be reached`));
  const tqx=`out:json;responseHandler:${callbackName}`;
- script.src=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?sheet=${encodeURIComponent(LIVE_SHEETS[tab])}&tqx=${encodeURIComponent(tqx)}&_=${Date.now()}`;
+ const source=LIVE_SHEETS[tab];
+ script.src=`https://docs.google.com/spreadsheets/d/${SOURCE_SPREADSHEET_ID}/gviz/tq?sheet=${encodeURIComponent(source.name)}&range=${encodeURIComponent(source.range)}&tqx=${encodeURIComponent(tqx)}&_=${Date.now()}`;
  document.head.appendChild(script);
 });
 const compact=(value:number)=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',notation:'compact',maximumFractionDigits:1}).format(value||0);
