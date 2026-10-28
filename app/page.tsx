@@ -23,25 +23,38 @@ type LiveTab=typeof LIVE_TABS[number];
 let liveRequestCounter=0;
 const csvCell=(value:unknown)=>`"${String(value??'').replaceAll('"','""')}"`;
 const csvFromRows=(rows:unknown[][])=>(rows??[]).map(row=>row.map(csvCell).join(',')).join('\r\n');
-const SNAPSHOT_URLS=[
- 'https://raw.githubusercontent.com/seemasalema-code/botpulse360/main/data.js',
-];
+const SNAPSHOT_ROOT='https://raw.githubusercontent.com/seemasalema-code/botpulse360/main/';
 const readPublishedSnapshot=async()=>{
- let script='';
- for(const url of SNAPSHOT_URLS){
-  const response=await fetch(`${url}?_=${Date.now()}`,{cache:'no-store'});
-  if(response.ok){script=await response.text();break;}
+ try{
+  const manifestResponse=await fetch(`${SNAPSHOT_ROOT}data/latest.json?_=${Date.now()}`,{cache:'no-store'});
+  if(!manifestResponse.ok)throw new Error('Snapshot manifest unavailable');
+  const manifest=await manifestResponse.json() as {version:string;refreshedAt?:string;tabs:Record<string,{path:string}>};
+  const names=['Chatbot Projects','Chatbot R&M','WA_Consumables','RCS_Consumables'];
+  const payloads=await Promise.all(names.map(async name=>{
+   const path=manifest.tabs?.[name]?.path;
+   if(!path)throw new Error(`Snapshot manifest is missing ${name}`);
+   const response=await fetch(`${SNAPSHOT_ROOT}${path}?v=${encodeURIComponent(manifest.version)}`,{cache:'no-store'});
+   if(!response.ok)throw new Error(`${name} snapshot unavailable`);
+   return response.json() as Promise<{rows:unknown[][]}>;
+  }));
+  return {projects:csvFromRows(payloads[0].rows),rm:csvFromRows(payloads[1].rows),wa:csvFromRows(payloads[2].rows),rcs:csvFromRows(payloads[3].rows),refreshedAt:manifest.refreshedAt};
+ }catch(manifestError){
+  // Backward-compatible last-known-good fallback while the atomic manifest
+  // is unavailable. Never blank an already rendered dashboard.
+  const response=await fetch(`${SNAPSHOT_ROOT}data.js?_=${Date.now()}`,{cache:'no-store'});
+  if(!response.ok)throw manifestError;
+  const script=await response.text();
+  if(!script)throw manifestError;
+  const json=script.replace(/^\s*window\.EMBEDDED_SHEETS_CURRENT\s*=\s*/,'').replace(/;\s*$/,'');
+  const workbook=JSON.parse(json) as Record<string,unknown[][]>&{__meta?:{refreshedAt?:string}};
+  return {
+   projects:csvFromRows(workbook['Chatbot Projects']??[]),
+   rm:csvFromRows(workbook['Chatbot R&M']??[]),
+   wa:csvFromRows(workbook.WA_Consumables??[]),
+   rcs:csvFromRows(workbook.RCS_Consumables??[]),
+   refreshedAt:workbook.__meta?.refreshedAt,
+  };
  }
- if(!script)throw new Error('Published dashboard snapshot unavailable');
- const json=script.replace(/^\s*window\.EMBEDDED_SHEETS_CURRENT\s*=\s*/,'').replace(/;\s*$/,'');
- const workbook=JSON.parse(json) as Record<string,unknown[][]>&{__meta?:{refreshedAt?:string}};
- return {
-  projects:csvFromRows(workbook['Chatbot Projects']??[]),
-  rm:csvFromRows(workbook['Chatbot R&M']??[]),
-  wa:csvFromRows(workbook.WA_Consumables??[]),
-  rcs:csvFromRows(workbook.RCS_Consumables??[]),
-  refreshedAt:workbook.__meta?.refreshedAt,
- };
 };
 const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
  const callbackName=`cpaasGviz_${Date.now()}_${liveRequestCounter++}`;
