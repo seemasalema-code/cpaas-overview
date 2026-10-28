@@ -25,7 +25,6 @@ const csvCell=(value:unknown)=>`"${String(value??'').replaceAll('"','""')}"`;
 const csvFromRows=(rows:unknown[][])=>(rows??[]).map(row=>row.map(csvCell).join(',')).join('\r\n');
 const SNAPSHOT_URLS=[
  'https://raw.githubusercontent.com/seemasalema-code/botpulse360/main/data.js',
- 'https://raw.githubusercontent.com/seemasalema-code/botpulse360/ee5f1aa6b2d1e9321bc96864f444cc995596cade/data.js',
 ];
 const readPublishedSnapshot=async()=>{
  let script='';
@@ -35,12 +34,13 @@ const readPublishedSnapshot=async()=>{
  }
  if(!script)throw new Error('Published dashboard snapshot unavailable');
  const json=script.replace(/^\s*window\.EMBEDDED_SHEETS_CURRENT\s*=\s*/,'').replace(/;\s*$/,'');
- const workbook=JSON.parse(json) as Record<string,unknown[][]>;
+ const workbook=JSON.parse(json) as Record<string,unknown[][]>&{__meta?:{refreshedAt?:string}};
  return {
   projects:csvFromRows(workbook['Chatbot Projects']??[]),
   rm:csvFromRows(workbook['Chatbot R&M']??[]),
   wa:csvFromRows(workbook.WA_Consumables??[]),
   rcs:csvFromRows(workbook.RCS_Consumables??[]),
+  refreshedAt:workbook.__meta?.refreshedAt,
  };
 };
 const readLiveCsv=(tab:LiveTab)=>new Promise<string>((resolve,reject)=>{
@@ -83,7 +83,7 @@ function ProductChip({product,active,onClick}:{product:string;active:boolean;onC
 export default function Home(){
  const [data,setData]=useState<any|null>(null),[loading,setLoading]=useState(true),[loadError,setLoadError]=useState('');
  const [tab,setTab]=useState<Tab>('overview'),[query,setQuery]=useState(''),[month,setMonth]=useState('All months'),[industry,setIndustry]=useState('All industries'),[product,setProduct]=useState('All products'),[owner,setOwner]=useState('All owners'),[vendor,setVendor]=useState('All vendors'),[drawer,setDrawer]=useState<Drawer>(null);
- const refresh=()=>{setLoading(true);setLoadError('');return readPublishedSnapshot().then(snapshot=>{setData({...buildDashboard(snapshot.projects,snapshot.rm,snapshot.wa,snapshot.rcs,SOURCE_URL),updatedAt:new Date().toISOString()});}).catch(()=>setLoadError('The published dashboard snapshot is temporarily unavailable. The existing screen has not been replaced.')).finally(()=>setLoading(false));};
+ const refresh=()=>{setLoading(true);setLoadError('');return readPublishedSnapshot().then(snapshot=>{setData({...buildDashboard(snapshot.projects,snapshot.rm,snapshot.wa,snapshot.rcs,SOURCE_URL),updatedAt:snapshot.refreshedAt||new Date().toISOString()});}).catch(()=>setLoadError('The published dashboard snapshot is temporarily unavailable. The existing screen has not been replaced.')).finally(()=>setLoading(false));};
  useEffect(()=>{refresh();const timer=window.setInterval(refresh,300000);const visible=()=>{if(document.visibilityState==='visible')refresh();};window.addEventListener('focus',visible);return()=>{window.clearInterval(timer);window.removeEventListener('focus',visible);};},[]);
 
  const consoleData=data?.consoleData,monthly=data?.clientMonthly??[],allMonths=useMemo(()=>[...new Set<string>(monthly.map((row:any)=>row.month))].sort(),[monthly]);
